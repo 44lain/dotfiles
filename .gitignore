@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# Deny by default.
+#
+# Everything is ignored. A file enters this repository only by being listed
+# explicitly below, and only after being read. Treat this repo as public from
+# commit zero — history does not erase cleanly.
+# ---------------------------------------------------------------------------
+*
+
+# Allow git to descend into directories so the rules below can match at all.
+!*/
+
+# --- repository meta -------------------------------------------------------
+!/.gitignore
+!/README.md
+!/Makefile
+!/LICENSE
+
+# --- docs ------------------------------------------------------------------
+!/docs/*.md
+!/docs/cursor-extensions.txt
+
+# --- shell -----------------------------------------------------------------
+!/shell/.bashrc.d/*.sh
+
+# --- prompt ----------------------------------------------------------------
+!/starship/.config/starship.toml
+
+# --- konsole ---------------------------------------------------------------
+!/konsole/.config/konsolerc
+!/konsole/.local/share/konsole/*.colorscheme
+!/konsole/.local/share/konsole/*.profile
+
+# --- cursor ----------------------------------------------------------------
+# settings.json and keybindings.json only. globalStorage/, workspaceStorage/
+# and History/ hold tokens, chat logs and absolute paths — never tracked.
+!/cursor/.config/Cursor/User/settings.json
+!/cursor/.config/Cursor/User/keybindings.json
+
+# --- kde -------------------------------------------------------------------
+# Stable, human-edited files only. plasma-org.kde.plasma.desktop-appletsrc,
+# plasmashellrc and kwinoutputconfig.json are rewritten by Plasma itself and
+# are deliberately excluded — see README.
+!/kde/.config/kdeglobals
+!/kde/.config/kwinrc
+!/kde/.config/kglobalshortcutsrc
+
+# --- git -------------------------------------------------------------------
+!/git/.gitconfig
+
+# --- personal scripts ------------------------------------------------------
+!/bin/bin/*.sh
+!/bin/.local/bin/*
+
+# ---------------------------------------------------------------------------
+# Hard re-ignore. These patterns come last so they win over every rule above,
+# even if a file is moved into an allowed directory by mistake.
+# ---------------------------------------------------------------------------
+**/id_rsa*
+**/id_ed25519*
+**/id_ecdsa*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.ovpn
+**/*.kdbx
+**/.env
+**/.env.*
+!**/.env.example
+**/.netrc
+**/credentials
+**/hosts.yml
+**/*token*
+**/*secret*
+**/.bash_history
+**/known_hosts
+**/mcp.json
