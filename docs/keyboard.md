@@ -57,8 +57,19 @@ kept on purpose: they are inert while the script is off, and re-enabling the
 script restores a working tiling setup with no re-learning. The gap settings in
 `[Script-krohnkite]` are preserved for the same reason.
 
-`linux-bootstrap` must install the script, otherwise these bindings point at
-nothing on a fresh machine.
+Krohnkite itself is **not part of this repo** and is not installed by anything
+here — these bindings point at nothing on a fresh machine until it is added.
+Source: [anametologin/krohnkite](https://github.com/anametologin/krohnkite).
+Install it either via KDE's *System Settings → Window Management → KWin
+Scripts → Get New Scripts…* (search "Krohnkite"), or manually:
+
+```bash
+git clone https://github.com/anametologin/krohnkite ~/.local/share/kwin/scripts/krohnkite-src
+kpackagetool6 --type=KWin/Script -i ~/.local/share/kwin/scripts/krohnkite-src
+```
+
+Then enable it in *KWin Scripts* and flip `krohnkiteEnabled=true` in
+`kde/.config/kwinrc` (or via the same Settings page) to restore tiling.
 
 ## Deliberately disabled
 
