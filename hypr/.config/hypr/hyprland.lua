@@ -26,6 +26,10 @@ hl.env("QT_WAYLAND_DISABLE_WINDOWDECORATION", "1")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
 
+-- grootshell (shell Quickshell): o wrapper grootshell-ipc e o próprio shell
+-- localizam a instância pelo path do checkout. Setado aqui p/ todo bind herdar.
+hl.env("GROOTSHELL_CONFIG_PATH", os.getenv("HOME") .. "/.config/quickshell/grootshell")
+
 --------------------------------------------------------------------------------
 -- MONITORS  (era conf.d/monitors.conf)
 --------------------------------------------------------------------------------
@@ -65,6 +69,9 @@ hl.config({
         },
         layout           = "dwindle",
         resize_on_border = true,
+        -- CS2 (competitivo, vsync off): permite tear-present -> menor latencia de frame.
+        -- Só afeta janelas com a window rule 'immediate' (ver secao WINDOW RULES).
+        allow_tearing    = true,
     },
 
     decoration = {
@@ -106,6 +113,13 @@ hl.config({
     cursor = {
         no_hardware_cursors = false, -- toggle de emergência p/ NVIDIA (design §19)
     },
+
+    -- 2 = scanout direto pra tela quando há uma única janela fullscreen sem overlays
+    -- (permite tearing). Tira o compositor do caminho no jogo: -latência, +alguns %% FPS.
+    -- Antes: bloqueado por "user settings" (opção estava em 0).
+    render = {
+        direct_scanout = 2,
+    },
 })
 
 -- Animações estilo grootshell: saída suave, workspace/layers deslizando na horizontal.
@@ -141,6 +155,18 @@ hl.window_rule({ name = "float-file-dialogs",
     match = { title = "^(Open File|Save File|Save As).*$" }, float = true })
 hl.window_rule({ name = "idleinhibit-fullscreen",
     match = { class = ".*" }, idle_inhibit = "fullscreen" })
+-- CS2: tear-present (precisa de general:allow_tearing = true). Menor latência de frame
+-- num shooter competitivo com vsync desligado. Sem efeito em qualquer outra janela.
+hl.window_rule({ name = "cs2-immediate",
+    match = { class = "^(cs2)$" }, immediate = true })
+
+--------------------------------------------------------------------------------
+-- LAYER RULES — blur nas surfaces do grootshell
+--------------------------------------------------------------------------------
+-- Namespaces (ver shell.qml / modules/): grootshell-background (wallpaper, sem
+-- blur), grootshell-bar (a barra), grootshell (overlay = borda + painéis).
+hl.layer_rule({ name = "grootshell-blur",
+    match = { namespace = "^grootshell(-bar)?$" }, blur = true, ignore_alpha = 0.1 })
 
 --------------------------------------------------------------------------------
 -- KEYBINDS  (era conf.d/binds.conf) — esquema para teclado 60%
@@ -148,12 +174,12 @@ hl.window_rule({ name = "idleinhibit-fullscreen",
 
 -- ---- Apps & essenciais ----
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
-hl.bind(mod .. " + R",      hl.dsp.exec_cmd("rofi -show drun"))
+hl.bind(mod .. " + R",      hl.dsp.exec_cmd("grootshell-ipc call launcher toggle"))
 hl.bind(mod .. " + E",      hl.dsp.exec_cmd("dolphin"))
 hl.bind(mod .. " + B",      hl.dsp.exec_cmd("zen"))
 hl.bind(mod .. " + Q",      hl.dsp.window.close())
-hl.bind(mod .. " + V",      hl.dsp.exec_cmd("cliphist list | rofi -dmenu | cliphist decode | wl-copy"))
-hl.bind(mod .. " + slash",  hl.dsp.exec_cmd("kitty --class hypr-cheatsheet -e less " .. os.getenv("HOME") .. "/Documentos/keybinds.md"))
+hl.bind(mod .. " + V",      hl.dsp.exec_cmd("cliphist list | rofi -dmenu | cliphist decode | wl-copy"))  -- fallback sem shell
+hl.bind(mod .. " + slash",  hl.dsp.exec_cmd("grootshell-ipc call keybinds toggle"))
 
 -- ---- Foco / movimento ----
 hl.bind(mod .. " + H", hl.dsp.focus({ direction = "left" }))
@@ -168,7 +194,16 @@ hl.bind(mod .. " + space", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + F",     hl.dsp.window.fullscreen({ action = "toggle", mode = "fullscreen" }))
 hl.bind(mod .. " + T",     hl.dsp.layout("togglesplit"))          -- dwindle
 hl.bind(mod .. " + G",     hl.dsp.group.toggle())
-hl.bind(mod .. " + Tab",   hl.dsp.group.next())
+hl.bind(mod .. " + SHIFT + Tab", hl.dsp.group.next())             -- ciclar janelas do grupo
+
+-- ---- grootshell (shell Quickshell via IPC) ----
+hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("grootshell-ipc call desktops next"))       -- switcher c/ preview
+hl.bind(mod .. " + D",         hl.dsp.exec_cmd("grootshell-ipc call island toggle"))       -- dashboard
+hl.bind(mod .. " + N",         hl.dsp.exec_cmd("grootshell-ipc call notifications toggle"))
+hl.bind(mod .. " + W",         hl.dsp.exec_cmd("grootshell-ipc call wallpaper toggle"))    -- seletor de wallpaper
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("grootshell-ipc call settings toggle"))
+hl.bind(mod .. " + M",         hl.dsp.exec_cmd("grootshell-ipc call island tab media"))
+hl.bind(mod .. " + SHIFT + V", hl.dsp.exec_cmd("grootshell-ipc call clipboard toggle"))
 
 -- ---- Mouse ----
 hl.bind(mod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
@@ -224,12 +259,12 @@ hl.define_submap("options", function()
         hl.dispatch(hl.dsp.exec_cmd("hyprctl hyprpaper reload"))
         hl.dispatch(hl.dsp.submap("reset"))
     end)
-    hl.bind("B", function()
-        hl.dispatch(hl.dsp.exec_cmd("killall -SIGUSR1 waybar"))
+    hl.bind("T", function()
+        hl.dispatch(hl.dsp.exec_cmd("grootshell-ipc call theme regenerate"))  -- re-roda matugen
         hl.dispatch(hl.dsp.submap("reset"))
     end)
     hl.bind("N", function()
-        hl.dispatch(hl.dsp.exec_cmd("makoctl mode -t do-not-disturb"))
+        hl.dispatch(hl.dsp.exec_cmd("grootshell-ipc call notifications clear"))  -- limpa todas
         hl.dispatch(hl.dsp.submap("reset"))
     end)
     hl.bind("escape", hl.dsp.submap("reset"))
@@ -258,9 +293,13 @@ hl.bind(mod .. " + backslash",    hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO
 -- AUTOSTART  (era conf.d/autostart.conf)
 --------------------------------------------------------------------------------
 hl.on("hyprland.start", function()
-    hl.exec_cmd("uwsm app -- waybar")
+    -- Barra + notificações: grootshell (Quickshell). grootshell tem daemon de
+    -- notificação próprio, então o mako sai (só um pode registrar o bus).
+    -- Fallback: descomente waybar + mako, comente a linha do qs.
+    -- hl.exec_cmd("uwsm app -- waybar")
+    -- hl.exec_cmd("uwsm app -- mako")
+    hl.exec_cmd("uwsm app -- qs -p " .. os.getenv("HOME") .. "/.config/quickshell/grootshell")
     hl.exec_cmd("uwsm app -- hyprpaper")
-    hl.exec_cmd("uwsm app -- mako")
     hl.exec_cmd("uwsm app -- hypridle")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("wl-paste --type text  --watch cliphist store")
