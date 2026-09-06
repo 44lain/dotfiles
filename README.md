@@ -40,9 +40,13 @@ existing real file, so nothing is silently replaced.
 | `kde`      | `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`  |    ✓    |    ✓    |        |
 | `bin`      | personal scripts                              |    ✓    |         |        |
 | `hypr`     | Hyprland lua config, hypridle                 |    ✓    |         |        |
+| `kitty`    | terminal baseline (matugen palette at runtime)|    ✓    |         |        |
+| `environment.d` | `systemd --user` PATH glue for uwsm      |    ✓    |         |        |
 
 See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap (60%
-keyboard).
+keyboard) and
+[docs/hyprland-wallpaper-and-theming.md](docs/hyprland-wallpaper-and-theming.md)
+for how the wallpaper, border colour and bar/terminal frost fit together.
 
 ## Layout
 
@@ -59,5 +63,7 @@ dotfiles/
 │              .local/bin/accela
 ├── hypr/      .config/hypr/{hyprland.lua,hypridle.conf}
 │              .config/hypr/_legacy_ini_backup/  (pre-lua INI, rollback)
-└── docs/      keyboard.md, cursor-extensions.txt
+├── kitty/     .config/kitty/kitty.conf
+├── environment.d/ .config/environment.d/50-local-bin.conf
+└── docs/      keyboard.md, hyprland-wallpaper-and-theming.md, cursor-extensions.txt
 ```

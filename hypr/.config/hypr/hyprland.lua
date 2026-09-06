@@ -125,6 +125,22 @@ hl.config({
     },
 })
 
+-- Cor da borda derivada do wallpaper (grootshell / matugen).
+--
+-- generate-theme.sh escreve colors-grootshell.lua a cada troca de wallpaper e
+-- aplica na hora via `hyprctl eval`; este dofile é só o lado da persistência,
+-- pra a cor sobreviver a um `hyprctl reload` / relogin. Ausente até o primeiro
+-- `theme regenerate` — aí os valores de col acima (catppuccin) seguem valendo.
+do
+    local ok, theme = pcall(dofile, os.getenv("HOME") .. "/.config/hypr/colors-grootshell.lua")
+    if ok and type(theme) == "table" then
+        hl.config({ general = { col = {
+            active_border   = { colors = theme.active_border, angle = 45 },
+            inactive_border = theme.inactive_border,
+        } } })
+    end
+end
+
 -- Animações estilo grootshell: saída suave, workspace/layers deslizando na horizontal.
 hl.curve("smooth", { type = "bezier", points = { { 0.16, 1 }, { 0.3, 1 } } })
 hl.curve("snappy", { type = "bezier", points = { { 0.2, 1 }, { 0.2, 1 } } })  -- mantido p/ referência
@@ -259,7 +275,7 @@ hl.define_submap("options", function()
         hl.dispatch(hl.dsp.submap("reset"))
     end)
     hl.bind("W", function()
-        hl.dispatch(hl.dsp.exec_cmd("hyprctl hyprpaper reload"))
+        hl.dispatch(hl.dsp.exec_cmd(gsipc .. " call wallpaper next"))  -- próximo wallpaper (era: hyprpaper reload)
         hl.dispatch(hl.dsp.submap("reset"))
     end)
     hl.bind("T", function()
@@ -302,7 +318,10 @@ hl.on("hyprland.start", function()
     -- hl.exec_cmd("uwsm app -- waybar")
     -- hl.exec_cmd("uwsm app -- mako")
     hl.exec_cmd("uwsm app -- qs -p " .. os.getenv("HOME") .. "/.config/quickshell/grootshell")
-    hl.exec_cmd("uwsm app -- hyprpaper")
+    -- hyprpaper saiu: o grootshell (modules/background/Background.qml) desenha o
+    -- wallpaper por tela e recolore junto com o tema. hyprpaper.conf fica no
+    -- disco (já migrado pra sintaxe 0.8.x) como fallback — reative esta linha e
+    -- comente o Background do shell pra voltar.
     hl.exec_cmd("uwsm app -- hypridle")
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     hl.exec_cmd("wl-paste --type text  --watch cliphist store")
