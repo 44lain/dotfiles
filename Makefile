@@ -4,7 +4,7 @@ TARGET ?= $(HOME)
 
 # Packages per host role. Kept explicit rather than auto-detected: a wrong
 # guess here silently symlinks a desktop config onto a headless server.
-DESKTOP := shell starship konsole cursor kde git bin
+DESKTOP := shell starship konsole cursor kde git bin hypr
 PENTEST := shell starship konsole cursor kde git
 SERVER  := shell starship git
 

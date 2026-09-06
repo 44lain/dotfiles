@@ -39,6 +39,7 @@ existing real file, so nothing is silently replaced.
 | `cursor`   | `settings.json`, `keybindings.json`           |    ✓    |    ✓    |        |
 | `kde`      | `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`  |    ✓    |    ✓    |        |
 | `bin`      | personal scripts                              |    ✓    |         |        |
+| `hypr`     | Hyprland lua config, hypridle                 |    ✓    |         |        |
 
 See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap (60%
 keyboard).
@@ -56,5 +57,7 @@ dotfiles/
 ├── git/       .gitconfig
 ├── bin/       bin/cs2-mode.sh
 │              .local/bin/accela
+├── hypr/      .config/hypr/{hyprland.lua,hypridle.conf}
+│              .config/hypr/_legacy_ini_backup/  (pre-lua INI, rollback)
 └── docs/      keyboard.md, cursor-extensions.txt
 ```
