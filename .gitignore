@@ -67,6 +67,12 @@
 # per wallpaper and left untracked.
 !/kitty/.config/kitty/kitty.conf
 
+# --- yt-x --------------------------------------------------------------
+# Terminal YouTube browser config. No secrets — cookies are read from the
+# browser at runtime, never stored. See docs/yt-x.md for deps and the Zen
+# profile symlink (not created by stow).
+!/yt-x/.config/yt-x/config
+
 # --- environment.d -------------------------------------------------------
 # systemd --user PATH glue so uwsm-spawned apps see ~/.local/bin (matugen).
 !/environment.d/.config/environment.d/*.conf

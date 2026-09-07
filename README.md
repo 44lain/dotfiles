@@ -42,11 +42,14 @@ existing real file, so nothing is silently replaced.
 | `hypr`     | Hyprland lua config, hypridle                 |    ✓    |         |        |
 | `kitty`    | terminal baseline (matugen palette at runtime)|    ✓    |         |        |
 | `environment.d` | `systemd --user` PATH glue for uwsm      |    ✓    |         |        |
+| `yt-x`     | terminal YouTube browser config               |    ✓    |         |        |
 
 See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap (60%
 keyboard) and
 [docs/hyprland-wallpaper-and-theming.md](docs/hyprland-wallpaper-and-theming.md)
-for how the wallpaper, border colour and bar/terminal frost fit together.
+for how the wallpaper, border colour and bar/terminal frost fit together, and
+[docs/yt-x.md](docs/yt-x.md) for the terminal YouTube setup (deps and the Zen
+cookie symlink are not automated).
 
 ## Layout
 
@@ -65,5 +68,6 @@ dotfiles/
 │              .config/hypr/_legacy_ini_backup/  (pre-lua INI, rollback)
 ├── kitty/     .config/kitty/kitty.conf
 ├── environment.d/ .config/environment.d/50-local-bin.conf
-└── docs/      keyboard.md, hyprland-wallpaper-and-theming.md, cursor-extensions.txt
+├── yt-x/      .config/yt-x/config
+└── docs/      keyboard.md, hyprland-wallpaper-and-theming.md, yt-x.md, cursor-extensions.txt
 ```
