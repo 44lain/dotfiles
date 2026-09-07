@@ -43,6 +43,7 @@ existing real file, so nothing is silently replaced.
 | `kitty`    | terminal baseline (matugen palette at runtime)|    ✓    |         |        |
 | `environment.d` | `systemd --user` PATH glue for uwsm      |    ✓    |         |        |
 | `yt-x`     | terminal YouTube browser config               |    ✓    |         |        |
+| `yazi`     | file-manager config + keymap (zoxide/fzf)      |    ✓    |         |        |
 
 See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap (60%
 keyboard) and
@@ -69,5 +70,6 @@ dotfiles/
 ├── kitty/     .config/kitty/kitty.conf
 ├── environment.d/ .config/environment.d/50-local-bin.conf
 ├── yt-x/      .config/yt-x/config
+├── yazi/      .config/yazi/{yazi,keymap}.toml
 └── docs/      keyboard.md, hyprland-wallpaper-and-theming.md, yt-x.md, cursor-extensions.txt
 ```

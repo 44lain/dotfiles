@@ -1,0 +1,31 @@
+# ~/.config/yazi/keymap.toml
+# Docs: https://yazi-rs.github.io/docs/configuration/keymap
+# Só os extras — todos os binds padrão continuam valendo.
+# (copiar caminho já é nativo: tecle  c  e escolha; abrir com editor: o / O)
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "d" ]
+run  = "cd ~/Documentos"
+desc = "Ir para ~/Documentos"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "c" ]
+run  = "cd ~/Documentos/Code"
+desc = "Ir para ~/Documentos/Code"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "D" ]
+run  = "cd ~/Downloads"
+desc = "Ir para ~/Downloads"
+
+# z = pular para pasta via zoxide (fzf)
+[[mgr.prepend_keymap]]
+on   = "z"
+run  = "plugin zoxide"
+desc = "Pular via zoxide"
+
+# Z = filtrar arquivos/pastas com fzf a partir daqui
+[[mgr.prepend_keymap]]
+on   = "Z"
+run  = "plugin fzf"
+desc = "Buscar com fzf"
