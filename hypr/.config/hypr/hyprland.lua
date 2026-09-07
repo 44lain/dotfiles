@@ -292,10 +292,15 @@ end)
 -- ---- Sair da sessão (kill switch) ----
 hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 
--- ---- Screenshot (Spectacle) ----
-hl.bind(mod .. " + P",         hl.dsp.exec_cmd("spectacle --region --background --nonotify"))
-hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("spectacle --fullscreen --background --nonotify"))
-hl.bind(mod .. " + CTRL + P",  hl.dsp.exec_cmd("spectacle --activewindow --background --nonotify"))
+-- ---- Screenshot (grim/slurp — nativo Wayland; Spectacle não captura sob Hyprland) ----
+-- Salva em ~/Imagens/Screenshots e copia p/ área de transferência. Remova o
+-- `&& notify-send ...` de cada linha se quiser captura 100% silenciosa.
+hl.bind(mod .. " + P",         hl.dsp.exec_cmd(
+    [==[mkdir -p "$HOME/Imagens/Screenshots"; f="$HOME/Imagens/Screenshots/scr-$(date +%Y%m%d-%H%M%S).png"; grim -g "$(slurp)" "$f" && wl-copy < "$f" && notify-send -t 1500 "Screenshot" "$f"]==]))
+hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(
+    [==[mkdir -p "$HOME/Imagens/Screenshots"; f="$HOME/Imagens/Screenshots/scr-$(date +%Y%m%d-%H%M%S).png"; grim -o "$(hyprctl monitors -j | jq -r 'first(.[] | select(.focused)) | .name')" "$f" && wl-copy < "$f" && notify-send -t 1500 "Screenshot" "$f"]==]))
+hl.bind(mod .. " + CTRL + P",  hl.dsp.exec_cmd(
+    [==[mkdir -p "$HOME/Imagens/Screenshots"; f="$HOME/Imagens/Screenshots/scr-$(date +%Y%m%d-%H%M%S).png"; grim -g "$(hyprctl activewindow -j | jq -r '"\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')" "$f" && wl-copy < "$f" && notify-send -t 1500 "Screenshot" "$f"]==]))
 
 -- ---- Mídia / volume ----
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true })
