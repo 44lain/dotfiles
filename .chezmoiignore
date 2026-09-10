@@ -1,0 +1,31 @@
+# chezmoi ignores source entries whose name starts with "." automatically
+# (.git, .github, .gitignore), so they need no entry here.
+
+# --- repo meta -----------------------------------------------------------
+README.md
+LICENSE
+Makefile
+/docs
+/test
+
+# --- machine-local -----------------------------------------------------
+# user.email lives here, created per machine, never in the repo. See
+# docs/track-E.md.
+.config/git/local
+
+# --- Stow packages not yet migrated ----------------------------------
+# These directories are still in the Stow layout (pkg/.config/...), which
+# chezmoi would otherwise map to junk targets like ~/hypr. Each task/wave
+# deletes its line here when it converts the package to dot_ layout.
+/bin
+/cursor
+/environment.d
+/git
+/hypr
+/kde
+/kitty
+/konsole
+/shell
+/starship
+/yazi
+/yt-x
