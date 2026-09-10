@@ -1,6 +1,7 @@
 [user]
-	email = 91384441+44lain@users.noreply.github.com
 	name = Luciano Rodrigues
+[include]
+	path = ~/.config/git/local
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f

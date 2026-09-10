@@ -19,7 +19,6 @@ Makefile
 # deletes its line here when it converts the package to dot_ layout.
 /bin
 /cursor
-/git
 /hypr
 /kde
 /kitty

@@ -53,7 +53,9 @@
 !/kde/.config/kglobalshortcutsrc
 
 # --- git -------------------------------------------------------------------
-!/git/.gitconfig
+# user.name + LFS + an include of ~/.config/git/local (machine-local email,
+# never tracked). See docs/track-E.md.
+!/dot_gitconfig
 
 # --- hypr ----------------------------------------------------------------
 # Hyprland lua config + hypridle only. hyprpaper.conf and hyprlock.conf carry
