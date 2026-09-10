@@ -31,7 +31,7 @@
 !/shell/.bashrc.d/*.sh
 
 # --- prompt ----------------------------------------------------------------
-!/starship/.config/starship.toml
+!/dot_config/starship.toml
 
 # --- konsole ---------------------------------------------------------------
 !/konsole/.config/konsolerc
