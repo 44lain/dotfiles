@@ -162,7 +162,7 @@ cascades.
 | C1 | `rice` CLI/menu: single entrypoint — theme, wallpaper, toggles (focus/game/record), scratchpads, project switcher, clipboard | todo | M | A2 |
 | C2 | This `ROADMAP.md` as the source of small QoL items | wip | S | — |
 | C3 | Loose items as they come up | todo | — | — |
-| C4 | Terminal productivity suite: zoxide · tmux+sesh (or zellij) · spotify-player · bottom/btop | todo | M | E1, A4 |
+| C4 | Terminal productivity suite: zoxide · tmux+sesh (zellij-level UX) · spotify-player · btop | todo | M | E1, A4 |
 | C5 | Editor: LazyVim, themed, with `lazy-lock.json` committed | todo | M | E1, A4 |
 
 Each C4/C5 tool touches 4 places in track order: package list (E3/E3a) →
@@ -171,12 +171,15 @@ dotfiles package (E1) → theme (A4) → keybind/launcher (C1).
 **C4 notes:**
 - **zoxide** — shell integration in `.bashrc.d`; yazi already depends on
   it, so partly present.
-- **tmux + sesh** — sesh = fzf session picker. Alternative: **zellij**
-  (no sesh needed, more batteries-included). Decide in C4.
+- **tmux + sesh**, customised to zellij-level UX *(decided)*: keybind-hint
+  status bar (`tmux-which-key` / `tmux-menus`), floating scratch pane
+  (`display-popup` / `tmux-floax`), session-picker popup (sesh + fzf),
+  better copy-mode (`extrakto` / `tmux-thumbs`), themed status line (A4).
+  Plugins via tpm, pinned/vendored for reproducibility (P1/P5).
 - **spotify-player** (Rust, matches the screenshot) or **ncspot** — both
   need Premium (librespot). Sibling of yt-x.
-- **bottom (btm)** or **btop** — btop has better theme support (matugen
-  templates exist); weigh against the shown btm if theming matters.
+- **btop** *(decided, was bottom/btm)* — better theme support, matugen
+  templates exist; themed in A4.
 
 **Done when:** common daily actions = one keybind/command, documented.
 
@@ -219,8 +222,12 @@ Connect + wallpaper sync, with proper Hyprland integration. Deliverable:
 | -------- | ----- | ------- |
 | Window borders | A0 | borderless (gap/shadow/dim focus) vs 1px minimal |
 | UI/text font | A0 | — |
-| System monitor | C4 | bottom (btm) vs btop |
-| Multiplexer | C4 | tmux+sesh vs zellij |
 | Terminal Spotify | C4 | spotify-player vs ncspot |
 | chezmoi vs yadm | E0 | — |
 | Authored palette names | A3 | e.g. rose / matcha / nord |
+
+### resolved
+
+- **System monitor → btop** (2026-09-10), was bottom/btm.
+- **Multiplexer → tmux + sesh** (2026-09-10), customised to zellij-level UX
+  rather than adopting zellij.
