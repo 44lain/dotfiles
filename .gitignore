@@ -84,7 +84,7 @@
 
 # --- environment.d -------------------------------------------------------
 # systemd --user PATH glue so uwsm-spawned apps see ~/.local/bin (matugen).
-!/environment.d/.config/environment.d/*.conf
+!/dot_config/environment.d/*.conf
 
 # --- personal scripts ------------------------------------------------------
 !/bin/bin/*.sh
