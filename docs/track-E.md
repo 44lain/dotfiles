@@ -327,6 +327,31 @@ between waves; any package reverts to Stow by reverting its commit +
 `_legacy_ini_backup/` stays the Hyprland return point; `git revert` +
 `make desktop` restores Stow.
 
+### status
+
+| Wave | Packages | State |
+| ---- | -------- | ----- |
+| 1 | `shell` `starship` `git` `environment.d` | **done** (`track-E-wave-1.md`) — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig`; verifier `test/wave-1.sh` |
+| 2 | `kitty` `yazi` `yt-x` `bin` | todo |
+| 3 | `hypr` `kde` | todo |
+| 4 | `cursor` `konsole` | todo |
+
+Wave 1 notes: on the `desktop` host these four packages were already
+plain files (not Stow symlinks), so there was no `make unstow` step —
+`chezmoi diff` was verified empty, then `chezmoi apply`. `rice` does not
+exist yet (its own plan), so wave 1 used `chezmoi diff` + `chezmoi apply`
+directly. Each not-yet-migrated Stow dir has a `/name` line in
+`.chezmoiignore`; a wave removes its line when it converts the package.
+
+**`git` note:** `dot_gitconfig` carries `user.name`, the LFS filter, and
+`[include] path = ~/.config/git/local`. The real `user.email` lives only in
+that machine-local file (in `.chezmoiignore`, never committed). `git config
+--get user.email` follows the include; `git config --global --get` does
+**not** (it skips includes) — use the plain form to verify. On a new
+machine, create it with
+`git config -f ~/.config/git/local user.email "<you@example.com>"` — until
+then commits have no email set. Wave 3's `rice onboard` will prompt for it.
+
 ### docs (E6) — formalise the repo's own conventions (D10)
 
 - **`docs/track-E.md`** (this file) grows a **step-by-step cookbook**: change a
