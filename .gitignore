@@ -88,6 +88,9 @@
 # systemd --user PATH glue so uwsm-spawned apps see ~/.local/bin (matugen).
 !/dot_config/environment.d/*.conf
 
+# --- rice (the dotfiles command) -------------------------------------
+!/dot_local/bin/*
+
 # --- personal scripts ------------------------------------------------------
 !/bin/bin/*.sh
 !/bin/.local/bin/*

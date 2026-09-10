@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# rice — the dotfiles control command. A thin router; the real work is in
+# rice-apply and rice-rollback (see docs/track-E.md §3).
+set -euo pipefail
+
+usage() {
+	cat <<'EOF'
+usage: rice <command>
+
+  apply            preview, back up, confirm, then chezmoi apply
+  diff             chezmoi diff (read-only preview)
+  rollback [<ts>]  restore the pre-apply state (newest backup, or a timestamp)
+  onboard          first-machine setup wizard (track E5)
+  doctor           health check (track B1)
+EOF
+}
+
+cmd=${1:-}
+if [ "$#" -gt 0 ]; then shift; fi
+
+case $cmd in
+	apply)
+		exec rice-apply "$@" ;;
+	rollback)
+		exec rice-rollback "$@" ;;
+	diff)
+		exec chezmoi diff "$@" ;;
+	onboard)
+		if command -v rice-onboard >/dev/null 2>&1; then
+			exec rice-onboard "$@"
+		fi
+		echo "rice onboard: not built yet (track E5 / wave 3)" >&2
+		exit 1 ;;
+	doctor)
+		echo "rice doctor: not implemented (track B1)"
+		exit 0 ;;
+	help|-h|--help)
+		usage
+		exit 0 ;;
+	"")
+		usage >&2
+		exit 2 ;;
+	*)
+		echo "rice: unknown command '$cmd'" >&2
+		usage >&2
+		exit 2 ;;
+esac
