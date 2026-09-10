@@ -67,7 +67,7 @@ The repo gains **three explicit layers:**
 
 | Id   | Item | Status | Effort | Deps |
 | ---- | ---- | ------ | ------ | ---- |
-| E0   | Spike: chezmoi vs yadm in a throwaway dir → documented decision | todo | S | — |
+| E0   | Spike: chezmoi vs yadm in a throwaway dir → documented decision | **done** | S | — |
 | E1   | Migrate repo to chezmoi source layout (`dot_config/…`, `private_`/`executable_`/`run_once_` prefixes). `chezmoi apply` reproduces `$HOME` **identically**. | todo | L | E0 |
 | E1a  | Safe-apply guard: mandatory `chezmoi diff` + auto-backup of any file `apply` would overwrite | todo | S | E1 |
 | E2   | Three layers + `.chezmoi.toml.tmpl` prompting `personal \| guest` at `chezmoi init` | todo | M | E1 |
@@ -81,6 +81,18 @@ The repo gains **three explicit layers:**
 (b) the Parrot notebook runs the same layer 1; (c) a guest dev installs
 and **nothing** on their machine breaks — monitors, GPU, personal config
 all untouched.
+
+**E0 decision (2026-09-10): chezmoi.** Proven in a throwaway lab
+(`scratchpad/e0/`): per-host data from one `.chezmoidata` file, personal
+layer genuinely withheld from a guest via templated `.chezmoiignore`,
+`chezmoi diff` previews every change before apply (P5), unmanaged files
+untouched, `run_once_` bootstrap branches on `.chezmoi.osRelease.id`
+(dnf/apt). yadm can template per host but **cannot withhold a layer** and
+has no designed safe-apply preview — rejected. chezmoi is also packaged
+on Fedora (`dnf install chezmoi`); yadm is not. **Caveat for E1:** chezmoi
+splits source from target (edit source + `apply`), a real change from
+Stow's edit-in-place — lean on `chezmoi edit --apply` / `chezmoi re-add`
+and document the new muscle memory in E6.
 
 ---
 
@@ -223,11 +235,12 @@ Connect + wallpaper sync, with proper Hyprland integration. Deliverable:
 | Window borders | A0 | borderless (gap/shadow/dim focus) vs 1px minimal |
 | UI/text font | A0 | — |
 | Terminal Spotify | C4 | spotify-player vs ncspot |
-| chezmoi vs yadm | E0 | — |
 | Authored palette names | A3 | e.g. rose / matcha / nord |
 
 ### resolved
 
+- **Dotfiles manager → chezmoi** (2026-09-10, E0), over yadm and staying
+  on Stow. Rationale in the track E "E0 decision" note.
 - **System monitor → btop** (2026-09-10), was bottom/btm.
 - **Multiplexer → tmux + sesh** (2026-09-10), customised to zellij-level UX
   rather than adopting zellij.
