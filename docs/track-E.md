@@ -336,6 +336,11 @@ between waves; any package reverts to Stow by reverting its commit +
 | 3 | `hypr` `kde` | todo |
 | 4 | `cursor` `konsole` | todo |
 
+The `rice` command is built (`docs/track-E-rice.md`): `rice apply` (guarded
+apply — preview, backup, confirm, prune), `rice diff`, `rice rollback`,
+`rice onboard` (stub → E5), `rice doctor` (stub → B1). From wave 2 on, use
+`rice apply`, not bare `chezmoi apply`.
+
 Wave 1 notes: on the `desktop` host these four packages were already
 plain files (not Stow symlinks), so there was no `make unstow` step —
 `chezmoi diff` was verified empty, then `chezmoi apply`. `rice` does not
@@ -351,6 +356,31 @@ that machine-local file (in `.chezmoiignore`, never committed). `git config
 machine, create it with
 `git config -f ~/.config/git/local user.email "<you@example.com>"` — until
 then commits have no email set. Wave 3's `rice onboard` will prompt for it.
+
+### cookbook
+
+Recipes for changing things without a session (P4). Grows each wave.
+
+**Apply pending changes** — always via the guard:
+
+    rice diff        # read-only preview
+    rice apply       # preview + back up + confirm + chezmoi apply
+
+`rice apply` copies every file it would change into
+`~/.local/state/rice/backup/<timestamp>/` and prints that timestamp. A bare
+`chezmoi apply` skips all of that — don't (spec D7).
+
+**Revert the last apply:**
+
+    rice rollback              # undo the newest backup
+    rice rollback <timestamp>  # undo a specific one
+
+Restores modified files, deletes files the apply created. Best-effort —
+it returns `$HOME` to the pre-apply state, it is not a transaction.
+
+**Inspect a backup:** `ls ~/.local/state/rice/backup/` — each dir holds a
+`manifest` (restored paths + the source commit that was applied) and a
+`.created` list. The 10 newest are kept.
 
 ### docs (E6) — formalise the repo's own conventions (D10)
 
