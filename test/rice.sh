@@ -22,9 +22,13 @@ chmod +x "$sandbox/bin"/*
 cat > "$sandbox/bin/chezmoi" <<'FAKE'
 #!/usr/bin/env bash
 case "$1" in
-  status)      cat "$SB/status" 2>/dev/null || true ;;
+  status)
+    [ ! -f "$SB/status-fail" ] || exit 1
+    cat "$SB/status" 2>/dev/null || true ;;
   diff)        echo "FAKE DIFF" ;;
-  apply)       cp -a "$SB/status" "$SB/applied" 2>/dev/null || true ;;
+  apply)
+    [ ! -f "$SB/apply-fail" ] || exit 1
+    cp -a "$SB/status" "$SB/applied" 2>/dev/null || true ;;
   source-path) echo "$SB/src" ;;
   *)           exit 0 ;;
 esac
@@ -100,6 +104,19 @@ else
 	flunk "apply: add (rc=$rc ts2=$ts2)"
 fi
 
+# a run-only status: chezmoi's `R` code (script will be run) must not be
+# treated as unknown/aborting, and must still proceed to apply
+printf ' R .chezmoiscripts/run_once_10-example.sh\n' > "$sandbox/status"
+out=$(run apply -y 2>&1); rc=$?
+if [ $rc -eq 0 ] \
+	&& printf '%s' "$out" | grep -q "will run" \
+	&& printf '%s' "$out" | grep -q "NOT reversible by rollback" \
+	&& ! printf '%s' "$out" | grep -qi "unknown status code"; then
+	pass "apply: R status (script) -> previewed, not unknown, proceeds"
+else
+	flunk "apply: R status (rc=$rc out=<$out>)"
+fi
+
 # malformed status -> fail closed
 printf 'this is not a status line\n' > "$sandbox/status"
 before=$(find "$bdir" -mindepth 1 -maxdepth 1 -type d | wc -l)
@@ -109,6 +126,40 @@ if [ $rc -eq 1 ] && printf '%s' "$out" | grep -qi "cannot parse" && [ "$before" 
 	pass "apply: malformed status -> exit 1, no new backup"
 else
 	flunk "apply: malformed status (rc=$rc out=<$out>)"
+fi
+
+# decline the confirmation prompt -> abort, no apply invoked
+rm -rf "$bdir"; rm -f "$SB/applied"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+out=$(printf 'n\n' | "$sandbox/bin/rice" apply 2>&1); rc=$?
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q "aborted" && [ ! -e "$SB/applied" ]; then
+	pass "apply: decline prompt -> exit 1 aborted, chezmoi apply never invoked"
+else
+	flunk "apply: decline prompt (rc=$rc out=<$out>)"
+fi
+
+# non-zero `chezmoi status` -> fail closed, no backup dir touched
+rm -rf "$bdir"
+touch "$SB/status-fail"
+out=$(run apply -y 2>&1); rc=$?
+rm -f "$SB/status-fail"
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -qi "'chezmoi status' failed" && [ ! -d "$bdir" ]; then
+	pass "apply: chezmoi status fails -> exit 1, not applying"
+else
+	flunk "apply: chezmoi status fails (rc=$rc out=<$out>)"
+fi
+
+# non-zero `chezmoi apply` -> exit 1, names the rollback timestamp
+rm -rf "$bdir"; rm -f "$SB/applied"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+touch "$SB/apply-fail"
+out=$(run apply -y 2>&1); rc=$?
+ts3=$(find "$bdir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -1)
+rm -f "$SB/apply-fail"
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q "rice rollback $ts3" && [ ! -e "$SB/applied" ]; then
+	pass "apply: chezmoi apply fails -> exit 1, names rice rollback <ts>"
+else
+	flunk "apply: chezmoi apply fails (rc=$rc ts3=$ts3 out=<$out>)"
 fi
 
 # prune to 10
@@ -143,6 +194,47 @@ else
 fi
 
 expect 1 "no such backup" "rollback: unknown timestamp -> exit 1" rollback 20200101T000000
+
+# backup dir exists but has no manifest -> exit 1, clear message
+rm -rf "$bdir"; mkdir -p "$bdir/20200101T000000"
+expect 1 "no manifest" "rollback: backup dir with no manifest -> exit 1" rollback 20200101T000000
+
+# --- rice-rollback: directories in .created (Critical #1) ---------------
+# chezmoi status emits directory entries too (parent before child); a plain
+# `rm -f` on a directory fails and, under set -e, aborts the whole rollback
+# before anything is deleted.
+rm -rf "$bdir" "$HOME/.bashrc.d"
+printf ' A .bashrc.d\n A .bashrc.d/10-path.sh\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+# simulate what `chezmoi apply` would have created in $HOME
+mkdir -p "$HOME/.bashrc.d"
+printf 'echo hi\n' > "$HOME/.bashrc.d/10-path.sh"
+out=$(run rollback -y 2>&1); rc=$?
+if [ $rc -eq 0 ] && [ ! -e "$HOME/.bashrc.d" ]; then
+	pass "rollback: directory in .created -> both dir and child removed"
+else
+	flunk "rollback: directory in .created (rc=$rc out=<$out>)"
+fi
+
+# --- rice-rollback: directory manifest entry (Critical #2) ---------------
+# `cp -a` into an existing directory nests the backup inside it instead of
+# restoring in place; `cp -aT` must be used so the destination is unambiguous.
+rm -rf "$bdir" "$HOME/.bashrc.d"
+mkdir -p "$HOME/.bashrc.d"
+printf 'ORIGINAL-10\n' > "$HOME/.bashrc.d/10-path.sh"
+printf 'MM .bashrc.d\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+# simulate what `chezmoi apply` would have done to the directory's contents
+printf 'CHANGED-10\n' > "$HOME/.bashrc.d/10-path.sh"
+printf 'NEW-FILE\n' > "$HOME/.bashrc.d/99-new.sh"
+out=$(run rollback -y 2>&1); rc=$?
+if [ $rc -eq 0 ] \
+	&& [ "$(cat "$HOME/.bashrc.d/10-path.sh" 2>/dev/null)" = "ORIGINAL-10" ] \
+	&& [ ! -e "$HOME/.bashrc.d/.bashrc.d" ]; then
+	pass "rollback: directory manifest entry restores in place, no self-nesting"
+else
+	flunk "rollback: directory manifest entry (rc=$rc out=<$out>)"
+fi
 
 rm -rf "$bdir"
 expect 1 "no backups" "rollback: no backups -> exit 1" rollback -y

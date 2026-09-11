@@ -3,6 +3,12 @@
 # rice-apply and rice-rollback (see docs/track-E.md §3).
 set -euo pipefail
 
+# Resolve our own directory and prepend it to PATH so rice-apply/rice-rollback
+# resolve even before ~/.local/bin is on PATH (fresh machine, first invocation
+# via an absolute path, before .bashrc.d/10-path.sh has run).
+self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PATH=$self_dir:$PATH
+
 usage() {
 	cat <<'EOF'
 usage: rice <command>

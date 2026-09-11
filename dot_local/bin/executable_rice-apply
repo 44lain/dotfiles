@@ -32,8 +32,9 @@ if [ -z "$status" ]; then
 	exit 0
 fi
 
-mods=()   # column-2 M/D and the file exists -> back up, list in manifest
-adds=()   # column-2 A (or M/D with no file) -> list in .created only
+mods=()    # column-2 M/D and the file exists -> back up, list in manifest
+adds=()    # column-2 A (or M/D with no file) -> list in .created only
+scripts=() # column-2 R -> chezmoi will run a script; not backed up/tracked
 while IFS= read -r line; do
 	[ -n "$line" ] || continue
 	if [ "${#line}" -lt 4 ] || [ "${line:2:1}" != " " ]; then
@@ -51,6 +52,7 @@ while IFS= read -r line; do
 			else
 				adds+=("$path")
 			fi ;;
+		R) scripts+=("$path") ;;
 		' ') : ;;
 		*)
 			echo "rice-apply: unknown status code '$op' for: $path" >&2
@@ -59,7 +61,7 @@ while IFS= read -r line; do
 	esac
 done <<< "$status"
 
-if [ ${#mods[@]} -eq 0 ] && [ ${#adds[@]} -eq 0 ]; then
+if [ ${#mods[@]} -eq 0 ] && [ ${#adds[@]} -eq 0 ] && [ ${#scripts[@]} -eq 0 ]; then
 	echo "nothing to apply"
 	exit 0
 fi
@@ -101,6 +103,10 @@ fi
 if [ ${#adds[@]} -gt 0 ]; then
 	echo "  will create (deleted on rollback):"
 	printf '    %s\n' "${adds[@]}"
+fi
+if [ ${#scripts[@]} -gt 0 ]; then
+	echo "  will run (NOT backed up, NOT reversible by rollback):"
+	printf '    %s\n' "${scripts[@]}"
 fi
 echo "  backup: $dir"
 

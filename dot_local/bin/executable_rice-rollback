@@ -66,15 +66,27 @@ fi
 for p in ${restore[@]+"${restore[@]}"}; do
 	if [ -e "$dir/$p" ]; then
 		mkdir -p "$HOME/$(dirname "$p")"
-		cp -a -- "$dir/$p" "$HOME/$p"
+		cp -aT -- "$dir/$p" "$HOME/$p"
 		echo "  restored $p"
 	else
 		echo "  WARN not in backup, left as-is: $p" >&2
 	fi
 done
-for p in ${created[@]+"${created[@]}"}; do
-	rm -f -- "$HOME/$p"
-	echo "  deleted $p"
+# Iterate .created back-to-front: chezmoi status (and thus this array) lists
+# parents before children, so reversing gives children before parents —
+# required so a directory's rmdir succeeds once it's already empty.
+for (( i=${#created[@]}-1; i>=0; i-- )); do
+	p=${created[$i]}
+	if [ -d "$HOME/$p" ] && [ ! -L "$HOME/$p" ]; then
+		if rmdir -- "$HOME/$p" 2>/dev/null; then
+			echo "  removed dir $p"
+		else
+			echo "  WARN not empty, left as-is: $p" >&2
+		fi
+	elif [ -e "$HOME/$p" ] || [ -L "$HOME/$p" ]; then
+		rm -f -- "$HOME/$p"
+		echo "  deleted $p"
+	fi
 done
 
 echo "done. re-check with: rice diff"
