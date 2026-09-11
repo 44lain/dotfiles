@@ -89,7 +89,7 @@ else
 fi
 
 # an add: no file in $HOME, recorded in .created only
-printf 'A  .config/new.toml\n' > "$sandbox/status"
+printf ' A .config/new.toml\n' > "$sandbox/status"
 out=$(run apply -y 2>&1); rc=$?
 ts2=$(find "$bdir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -1)
 if [ $rc -eq 0 ] && [ "$ts2" != "$ts" ] \

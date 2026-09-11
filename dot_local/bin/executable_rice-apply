@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# rice-apply — a safe wrapper around `chezmoi apply` (docs/track-E.md §3).
+#   1. nothing pending            -> exit 0
+#   2. back up every file apply would modify/delete; list files it would create
+#   3. write a manifest (paths + source commit)
+#   4. confirm (skip with -y)
+#   5. chezmoi apply
+#   6. prune to the 10 newest backups; print the rollback hint
+# Fails closed: an unparseable `chezmoi status` line aborts before step 5.
+set -euo pipefail
+
+yes=0
+for arg in "$@"; do
+	case $arg in
+		-y|--yes) yes=1 ;;
+		*) echo "rice-apply: unexpected argument '$arg'" >&2; exit 2 ;;
+	esac
+done
+
+command -v chezmoi >/dev/null 2>&1 || { echo "rice-apply: chezmoi not found" >&2; exit 1; }
+
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+backup_root=$state_home/rice/backup
+
+if ! status=$(chezmoi status); then
+	echo "rice-apply: 'chezmoi status' failed; not applying" >&2
+	exit 1
+fi
+
+if [ -z "$status" ]; then
+	echo "nothing to apply"
+	exit 0
+fi
+
+mods=()   # column-2 M/D and the file exists -> back up, list in manifest
+adds=()   # column-2 A (or M/D with no file) -> list in .created only
+while IFS= read -r line; do
+	[ -n "$line" ] || continue
+	if [ "${#line}" -lt 4 ] || [ "${line:2:1}" != " " ]; then
+		echo "rice-apply: cannot parse 'chezmoi status' line: $line" >&2
+		echo "rice-apply: aborting; nothing was applied" >&2
+		exit 1
+	fi
+	op=${line:1:1}
+	path=${line:3}
+	case $op in
+		A) adds+=("$path") ;;
+		M|D)
+			if [ -e "$HOME/$path" ] || [ -L "$HOME/$path" ]; then
+				mods+=("$path")
+			else
+				adds+=("$path")
+			fi ;;
+		' ') : ;;
+		*)
+			echo "rice-apply: unknown status code '$op' for: $path" >&2
+			echo "rice-apply: aborting; nothing was applied" >&2
+			exit 1 ;;
+	esac
+done <<< "$status"
+
+if [ ${#mods[@]} -eq 0 ] && [ ${#adds[@]} -eq 0 ]; then
+	echo "nothing to apply"
+	exit 0
+fi
+
+ts=$(date +%Y%m%dT%H%M%S)
+dir=$backup_root/$ts
+n=1
+while [ -e "$dir" ]; do
+	n=$((n + 1))
+	dir=$backup_root/$ts-$n
+done
+mkdir -p "$dir"
+
+if [ ${#mods[@]} -gt 0 ]; then
+	for p in "${mods[@]}"; do
+		( cd "$HOME" && cp -a --parents -- "$p" "$dir/" )
+	done
+fi
+if [ ${#adds[@]} -gt 0 ]; then
+	for p in "${adds[@]}"; do
+		printf '%s\n' "$p" >> "$dir/.created"
+	done
+fi
+
+{
+	echo "# rice backup"
+	echo "# created: $(date -Is)"
+	echo "# source-commit: $(git -C "$(chezmoi source-path)" rev-parse HEAD 2>/dev/null || echo unknown)"
+	if [ ${#mods[@]} -gt 0 ]; then
+		for p in "${mods[@]}"; do printf '%s\n' "$p"; done
+	fi
+} > "$dir/manifest"
+
+echo "rice apply — $ts"
+if [ ${#mods[@]} -gt 0 ]; then
+	echo "  will change (restored on rollback):"
+	printf '    %s\n' "${mods[@]}"
+fi
+if [ ${#adds[@]} -gt 0 ]; then
+	echo "  will create (deleted on rollback):"
+	printf '    %s\n' "${adds[@]}"
+fi
+echo "  backup: $dir"
+
+if [ "$yes" -ne 1 ]; then
+	printf 'apply? [y/N] '
+	read -r reply || reply=""
+	case $reply in
+		y|Y|yes|YES) : ;;
+		*) echo "aborted; backup kept at $dir"; exit 1 ;;
+	esac
+fi
+
+if ! chezmoi apply; then
+	echo "rice-apply: 'chezmoi apply' failed — restore with: rice rollback $ts" >&2
+	exit 1
+fi
+
+mapfile -t all < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d | sort)
+if [ ${#all[@]} -gt 10 ]; then
+	drop=$(( ${#all[@]} - 10 ))
+	for old in "${all[@]:0:drop}"; do rm -rf -- "$old"; done
+fi
+
+echo "applied. rollback: rice rollback $ts"
