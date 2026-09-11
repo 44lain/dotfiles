@@ -126,7 +126,7 @@ fi
 # --- rice-rollback round trip ------------------------------------------
 rm -rf "$bdir"; mkdir -p "$HOME/.config"
 printf 'ORIGINAL\n' > "$HOME/.config/foo.toml"
-printf 'MM .config/foo.toml\nA  .config/new.toml\n' > "$sandbox/status"
+printf 'MM .config/foo.toml\n A .config/new.toml\n' > "$sandbox/status"
 run apply -y >/dev/null 2>&1
 
 # simulate what `chezmoi apply` would have done to $HOME

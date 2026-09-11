@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# rice-rollback — restore the pre-apply state saved by rice-apply.
+# Best-effort: copies backed-up files back, deletes files apply created.
+# "Returns you to the pre-apply state"; not a transactional system.
+set -euo pipefail
+
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+backup_root=$state_home/rice/backup
+
+yes=0
+ts=""
+for arg in "$@"; do
+	case $arg in
+		-y|--yes) yes=1 ;;
+		-*) echo "rice-rollback: unknown flag '$arg'" >&2; exit 2 ;;
+		*) ts=$arg ;;
+	esac
+done
+
+if [ -z "$ts" ]; then
+	if [ -d "$backup_root" ]; then
+		ts=$(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -1)
+	fi
+	if [ -z "$ts" ]; then
+		echo "rice-rollback: no backups under $backup_root" >&2
+		exit 1
+	fi
+fi
+
+dir=$backup_root/$ts
+if [ ! -d "$dir" ]; then
+	echo "rice-rollback: no such backup: $dir" >&2
+	exit 1
+fi
+if [ ! -f "$dir/manifest" ]; then
+	echo "rice-rollback: $dir has no manifest" >&2
+	exit 1
+fi
+
+mapfile -t restore < <(grep -v '^#' "$dir/manifest" | grep -v '^[[:space:]]*$' || true)
+created=()
+if [ -f "$dir/.created" ]; then
+	mapfile -t created < <(grep -v '^[[:space:]]*$' "$dir/.created" || true)
+fi
+
+commit=$(sed -n 's/^# source-commit: //p' "$dir/manifest")
+echo "rollback $ts (source-commit ${commit:-unknown})"
+if [ ${#restore[@]} -gt 0 ]; then
+	echo "  restore:"
+	printf '    %s\n' "${restore[@]}"
+fi
+if [ ${#created[@]} -gt 0 ]; then
+	echo "  delete:"
+	printf '    %s\n' "${created[@]}"
+fi
+
+if [ "$yes" -ne 1 ]; then
+	printf 'proceed? [y/N] '
+	read -r reply || reply=""
+	case $reply in
+		y|Y|yes|YES) : ;;
+		*) echo "aborted"; exit 1 ;;
+	esac
+fi
+
+for p in ${restore[@]+"${restore[@]}"}; do
+	if [ -e "$dir/$p" ]; then
+		mkdir -p "$HOME/$(dirname "$p")"
+		cp -a -- "$dir/$p" "$HOME/$p"
+		echo "  restored $p"
+	else
+		echo "  WARN not in backup, left as-is: $p" >&2
+	fi
+done
+for p in ${created[@]+"${created[@]}"}; do
+	rm -f -- "$HOME/$p"
+	echo "  deleted $p"
+done
+
+echo "done. re-check with: rice diff"
