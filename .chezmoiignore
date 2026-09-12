@@ -13,14 +13,6 @@ Makefile
 # docs/track-E.md.
 .config/git/local
 
-# --- Stow packages not yet migrated ----------------------------------
-# These directories are still in the Stow layout (pkg/.config/...), which
-# chezmoi would otherwise map to junk targets like ~/cursor. Each task/wave
-# deletes its line here when it converts the package to dot_ layout.
-/cursor
-/kde
-/konsole
-
 # --- hypr files not yet templated (personal wallpaper path) ------------
 # Untracked (see .gitignore), but chezmoi reads the filesystem directly so
 # they still need hiding here or they'd become junk targets under
@@ -33,7 +25,9 @@ Makefile
 # --- layer 3 — personal, withheld from guest installs (docs/track-E.md §2) -
 # .chezmoiignore is always template-evaluated by chezmoi, no .tmpl suffix
 # needed. A guest profile never sees these paths in `chezmoi managed`,
-# `chezmoi diff`, or their $HOME.
+# `chezmoi diff`, or their $HOME. cs2-mode.sh is a CS2 FPS-tuning script —
+# specific to my own game tweaks, not something a generic install should
+# carry.
 {{ if ne .profile "personal" -}}
-.local/bin/accela
+bin/cs2-mode.sh
 {{ end -}}

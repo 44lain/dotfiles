@@ -34,25 +34,6 @@
 # --- prompt ----------------------------------------------------------------
 !/dot_config/starship.toml
 
-# --- konsole ---------------------------------------------------------------
-!/konsole/.config/konsolerc
-!/konsole/.local/share/konsole/*.colorscheme
-!/konsole/.local/share/konsole/*.profile
-
-# --- cursor ----------------------------------------------------------------
-# settings.json and keybindings.json only. globalStorage/, workspaceStorage/
-# and History/ hold tokens, chat logs and absolute paths — never tracked.
-!/cursor/.config/Cursor/User/settings.json
-!/cursor/.config/Cursor/User/keybindings.json
-
-# --- kde -------------------------------------------------------------------
-# Stable, human-edited files only. plasma-org.kde.plasma.desktop-appletsrc,
-# plasmashellrc and kwinoutputconfig.json are rewritten by Plasma itself and
-# are deliberately excluded — see README.
-!/kde/.config/kdeglobals
-!/kde/.config/kwinrc
-!/kde/.config/kglobalshortcutsrc
-
 # --- git -------------------------------------------------------------------
 # user.name + LFS + an include of ~/.config/git/local (machine-local email,
 # never tracked). See docs/track-E.md.

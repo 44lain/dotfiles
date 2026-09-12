@@ -1,40 +1,23 @@
 SHELL := /bin/bash
-STOW   ?= stow
-TARGET ?= $(HOME)
 
-# Packages per host role. Kept explicit rather than auto-detected: a wrong
-# guess here silently symlinks a desktop config onto a headless server.
-#
-# shell, starship, git, environment.d migrated to chezmoi (docs/track-E.md,
-# wave 1). server host dropped (D3). Remaining packages still use Stow until
-# their wave lands; this Makefile is deleted at the end of the migration.
-DESKTOP := konsole cursor kde
-PENTEST := konsole cursor kde
+# Stow retired 2026-09-12: every package that was still Stow-managed either
+# migrated to chezmoi (docs/track-E.md) or was dropped from the repo (kde,
+# cursor, konsole — too personal/idiosyncratic for a public "clone and use"
+# rice). Install/apply now goes through `chezmoi init --apply` + `rice apply`
+# (README), not `make`.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help desktop pentest unstow dry-run check bashrc-hook cursor-extensions
+.PHONY: help check bashrc-hook cursor-extensions
 
 help:
 	@echo "Targets:"
-	@echo "  make desktop            stow $(DESKTOP)"
-	@echo "  make pentest            stow $(PENTEST)"
-	@echo "  make dry-run PKG=kde    simulate one package, change nothing"
-	@echo "  make unstow PKG=kde     remove one package's symlinks"
 	@echo "  make bashrc-hook        add the ~/.bashrc.d loop (Debian/Parrot only)"
 	@echo "  make cursor-extensions  install the extensions listed in docs/"
 	@echo "  make check              shellcheck + gitleaks"
-
-desktop: ; @$(STOW) --target=$(TARGET) --restow --verbose $(DESKTOP)
-pentest: ; @$(STOW) --target=$(TARGET) --restow --verbose $(PENTEST)
-
-dry-run:
-	@test -n "$(PKG)" || { echo "usage: make dry-run PKG=<package>" >&2; exit 2; }
-	@$(STOW) --target=$(TARGET) --simulate --verbose=2 $(PKG)
-
-unstow:
-	@test -n "$(PKG)" || { echo "usage: make unstow PKG=<package>" >&2; exit 2; }
-	@$(STOW) --target=$(TARGET) --delete --verbose $(PKG)
+	@echo ""
+	@echo "To apply the dotfiles themselves: chezmoi init --apply <this repo>,"
+	@echo "then 'rice apply' for any later change. See README.md."
 
 # Fedora's stock ~/.bashrc sources ~/.bashrc.d/*; Debian's and Parrot's do not.
 # Idempotent: appends the loop only when it is not already present.
