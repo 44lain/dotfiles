@@ -8,7 +8,7 @@ TARGET ?= $(HOME)
 # shell, starship, git, environment.d migrated to chezmoi (docs/track-E.md,
 # wave 1). server host dropped (D3). Remaining packages still use Stow until
 # their wave lands; this Makefile is deleted at the end of the migration.
-DESKTOP := konsole cursor kde bin hypr yt-x yazi
+DESKTOP := konsole cursor kde bin hypr yt-x
 PENTEST := konsole cursor kde
 
 .DEFAULT_GOAL := help

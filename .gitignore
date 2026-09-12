@@ -82,7 +82,7 @@
 # --- yazi --------------------------------------------------------------
 # File-manager tweaks only. The `z`/`Z` keymap needs the zoxide and fzf yazi
 # plugins: `ya pack -a yazi-rs/plugins:zoxide yazi-rs/plugins:fzf`.
-!/yazi/.config/yazi/*.toml
+!/dot_config/yazi/*.toml
 
 # --- environment.d -------------------------------------------------------
 # systemd --user PATH glue so uwsm-spawned apps see ~/.local/bin (matugen).
