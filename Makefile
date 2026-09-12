@@ -8,7 +8,7 @@ TARGET ?= $(HOME)
 # shell, starship, git, environment.d migrated to chezmoi (docs/track-E.md,
 # wave 1). server host dropped (D3). Remaining packages still use Stow until
 # their wave lands; this Makefile is deleted at the end of the migration.
-DESKTOP := konsole cursor kde bin hypr
+DESKTOP := konsole cursor kde hypr
 PENTEST := konsole cursor kde
 
 .DEFAULT_GOAL := help
@@ -57,7 +57,7 @@ cursor-extensions:
 check:
 	@fail=0; \
 	if command -v shellcheck >/dev/null; then \
-		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh bin/bin/*.sh bin/.local/bin/* dot_local/bin/* || fail=1; \
+		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh bin/executable_*.sh dot_local/bin/* || fail=1; \
 	else echo "shellcheck not installed — skipped" >&2; fi; \
 	if command -v gitleaks >/dev/null; then \
 		gitleaks detect --source . --no-banner --redact || fail=1; \

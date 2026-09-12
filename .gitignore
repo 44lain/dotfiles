@@ -88,12 +88,11 @@
 # systemd --user PATH glue so uwsm-spawned apps see ~/.local/bin (matugen).
 !/dot_config/environment.d/*.conf
 
-# --- rice (the dotfiles command) -------------------------------------
+# --- rice (the dotfiles command) + personal ~/.local/bin scripts -----
 !/dot_local/bin/*
 
-# --- personal scripts ------------------------------------------------------
-!/bin/bin/*.sh
-!/bin/.local/bin/*
+# --- personal ~/bin scripts -------------------------------------------
+!/bin/executable_*.sh
 
 # ---------------------------------------------------------------------------
 # Hard re-ignore. These patterns come last so they win over every rule above,

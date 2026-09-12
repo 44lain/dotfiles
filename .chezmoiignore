@@ -17,7 +17,6 @@ Makefile
 # These directories are still in the Stow layout (pkg/.config/...), which
 # chezmoi would otherwise map to junk targets like ~/hypr. Each task/wave
 # deletes its line here when it converts the package to dot_ layout.
-/bin
 /cursor
 /hypr
 /kde
