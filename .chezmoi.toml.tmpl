@@ -1,0 +1,9 @@
+{{/* Prompted once at `chezmoi init`, written to ~/.config/chezmoi/chezmoi.toml.
+     See docs/track-E.md §2. */ -}}
+[data]
+    profile = {{ promptStringOnce . "profile" "Profile (personal/guest)" "guest" | quote }}
+    host    = {{ promptStringOnce . "host" "Host (desktop/pentest)" "desktop" | quote }}
+
+[git]
+    autoCommit = false
+    autoPush = false

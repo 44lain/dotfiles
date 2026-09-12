@@ -8,7 +8,7 @@ TARGET ?= $(HOME)
 # shell, starship, git, environment.d migrated to chezmoi (docs/track-E.md,
 # wave 1). server host dropped (D3). Remaining packages still use Stow until
 # their wave lands; this Makefile is deleted at the end of the migration.
-DESKTOP := konsole cursor kde hypr
+DESKTOP := konsole cursor kde
 PENTEST := konsole cursor kde
 
 .DEFAULT_GOAL := help
@@ -19,8 +19,8 @@ help:
 	@echo "Targets:"
 	@echo "  make desktop            stow $(DESKTOP)"
 	@echo "  make pentest            stow $(PENTEST)"
-	@echo "  make dry-run PKG=hypr   simulate one package, change nothing"
-	@echo "  make unstow PKG=hypr    remove one package's symlinks"
+	@echo "  make dry-run PKG=kde    simulate one package, change nothing"
+	@echo "  make unstow PKG=kde     remove one package's symlinks"
 	@echo "  make bashrc-hook        add the ~/.bashrc.d loop (Debian/Parrot only)"
 	@echo "  make cursor-extensions  install the extensions listed in docs/"
 	@echo "  make check              shellcheck + gitleaks"

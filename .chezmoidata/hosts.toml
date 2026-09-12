@@ -1,0 +1,26 @@
+# Per-host machine data for chezmoi templates (docs/track-E.md §2).
+#
+# Edit this file to add a monitor, change GPU env vars, or set up a new
+# host — that's the one place this needs editing. dot_config/hypr/
+# machine.lua.tmpl renders this into ~/.config/hypr/machine.lua, which
+# hyprland.lua reads at reload. `rice apply` after any change here.
+
+[hosts.desktop]
+kb_layout = "us,br"
+scale     = 1
+monitors  = [
+  { output = "DP-1",     mode = "1920x1080@144", position = "0x0",      scale = 1 },
+  { output = "HDMI-A-1", mode = "1366x768@60",   position = "1920x312", scale = 1 },
+  { output = "",         mode = "preferred",     position = "auto",     scale = 1 }, # fallback p/ qualquer outra saída
+]
+# NVIDIA proprietary driver env — see hyprland.lua's old ENV section (now
+# generated from this table).
+gpu_env = { LIBVA_DRIVER_NAME = "nvidia", "__GLX_VENDOR_LIBRARY_NAME" = "nvidia", NVD_BACKEND = "direct" }
+
+[hosts.pentest]
+kb_layout = "us,br"
+scale     = 1
+monitors  = [
+  { output = "", mode = "preferred", position = "auto", scale = 1 },
+]
+gpu_env = {}

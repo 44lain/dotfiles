@@ -14,12 +14,35 @@ local mod = "SUPER"
 local gsipc = os.getenv("HOME") .. "/.config/quickshell/grootshell/scripts/grootshell-ipc"
 
 --------------------------------------------------------------------------------
+-- MACHINE DATA — monitores, env de GPU e kb_layout, por host
+--------------------------------------------------------------------------------
+-- machine.lua é gerado pelo chezmoi a partir de .chezmoidata/hosts.toml
+-- (docs/track-E.md §2). Editar hosts.toml, não machine.lua. Sem chezmoi
+-- aplicado ainda (ou clone cru sem `rice apply`), cai no fallback abaixo —
+-- os valores reais deste host hoje — mesmo esquema do colors-grootshell.lua.
+local m = {
+    kb_layout = "us,br",
+    monitors = {
+        { output = "DP-1",     mode = "1920x1080@144", position = "0x0",      scale = 1 },
+        { output = "HDMI-A-1", mode = "1366x768@60",   position = "1920x312", scale = 1 },
+        { output = "",         mode = "preferred",     position = "auto",     scale = 1 },
+    },
+    gpu_env = {
+        LIBVA_DRIVER_NAME = "nvidia",
+        __GLX_VENDOR_LIBRARY_NAME = "nvidia",
+        NVD_BACKEND = "direct",
+    },
+}
+do
+    local ok, data = pcall(dofile, os.getenv("HOME") .. "/.config/hypr/machine.lua")
+    if ok and type(data) == "table" then m = data end
+end
+
+--------------------------------------------------------------------------------
 -- ENV — NVIDIA + toolkits  (era conf.d/env.conf)
 --------------------------------------------------------------------------------
--- Setado antes de o display server subir.
-hl.env("LIBVA_DRIVER_NAME", "nvidia")
-hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
-hl.env("NVD_BACKEND", "direct")
+-- Setado antes de o display server subir. GPU env vem de m.gpu_env (por host).
+for k, v in pairs(m.gpu_env) do hl.env(k, v) end
 
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
@@ -34,19 +57,18 @@ hl.env("HYPRCURSOR_SIZE", "24")
 hl.env("GROOTSHELL_CONFIG_PATH", os.getenv("HOME") .. "/.config/quickshell/grootshell")
 
 --------------------------------------------------------------------------------
--- MONITORS  (era conf.d/monitors.conf)
+-- MONITORS  (era conf.d/monitors.conf) — de m.monitors (por host)
 --------------------------------------------------------------------------------
-hl.monitor({ output = "DP-1",     mode = "1920x1080@144", position = "0x0",      scale = 1 })
-hl.monitor({ output = "HDMI-A-1", mode = "1366x768@60",   position = "1920x312", scale = 1 })
--- fallback genérico para qualquer outra saída
-hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+for _, mon in ipairs(m.monitors) do
+    hl.monitor(mon)
+end
 
 --------------------------------------------------------------------------------
 -- INPUT  (era conf.d/input.conf)
 --------------------------------------------------------------------------------
 hl.config({
     input = {
-        kb_layout    = "us,br",
+        kb_layout    = m.kb_layout,
         kb_variant   = ",abnt2",
         -- Ctrl direito -> Super_R (Mod4): vira modificador de WM. Ctrl esquerdo fica normal.
         -- Win direito (se existir) -> Ctrl direito. A tecla Super continua valendo como mod.
