@@ -2,11 +2,13 @@
 # rice-apply — a safe wrapper around `chezmoi apply` (docs/track-E.md §3).
 #   1. nothing pending            -> exit 0
 #   2. back up every file apply would modify/delete; list files it would create
-#   3. write a manifest (paths + source commit)
-#   4. confirm (skip with -y)
-#   5. chezmoi apply
-#   6. prune to the 10 newest backups; print the rollback hint
-# Fails closed: an unparseable `chezmoi status` line aborts before step 5.
+#   3. extend the baseline (docs/track-E.md §3, `rice uninstall`) with any
+#      path this apply touches for the first time ever on this machine
+#   4. write a manifest (paths + source commit)
+#   5. confirm (skip with -y)
+#   6. chezmoi apply
+#   7. prune to the 10 newest backups; print the rollback hint
+# Fails closed: an unparseable `chezmoi status` line aborts before step 6.
 set -euo pipefail
 
 yes=0
@@ -21,6 +23,9 @@ command -v chezmoi >/dev/null 2>&1 || { echo "rice-apply: chezmoi not found" >&2
 
 state_home=${XDG_STATE_HOME:-$HOME/.local/state}
 backup_root=$state_home/rice/backup
+baseline_root=$state_home/rice/baseline
+baseline_manifest=$baseline_root/manifest
+baseline_files=$baseline_root/files
 
 if ! status=$(chezmoi status); then
 	echo "rice-apply: 'chezmoi status' failed; not applying" >&2
@@ -65,6 +70,25 @@ if [ ${#mods[@]} -eq 0 ] && [ ${#adds[@]} -eq 0 ] && [ ${#scripts[@]} -eq 0 ]; t
 	echo "nothing to apply"
 	exit 0
 fi
+
+# Baseline (docs/track-E.md §3, `rice uninstall`): the pre-rice state of
+# every path this repo has ever managed on this machine, captured the
+# first time each path is about to be touched — not just on a literal
+# "first ever apply", since later commits keep adding new managed paths.
+# Never pruned; only `rice uninstall` clears it. E = existed (restore from
+# baseline_files on uninstall), C = created (delete on uninstall). Scripts
+# aren't file state, so they're not baseline-tracked (same as backups).
+mkdir -p "$baseline_files"
+touch "$baseline_manifest"
+for p in ${mods[@]+"${mods[@]}"} ${adds[@]+"${adds[@]}"}; do
+	grep -qF -- "	$p" "$baseline_manifest" && continue
+	if [ -e "$HOME/$p" ] || [ -L "$HOME/$p" ]; then
+		( cd "$HOME" && cp -a --parents -- "$p" "$baseline_files/" )
+		printf 'E\t%s\n' "$p" >> "$baseline_manifest"
+	else
+		printf 'C\t%s\n' "$p" >> "$baseline_manifest"
+	fi
+done
 
 ts=$(date +%Y%m%dT%H%M%S)
 dir=$backup_root/$ts

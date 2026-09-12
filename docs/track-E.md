@@ -184,7 +184,8 @@ Bash, no dependency beyond `chezmoi` + coreutils.
 | `rice apply` | safe-apply guard (below) | E1a |
 | `rice diff` | `chezmoi diff` passthrough | E1a |
 | `rice onboard` | calls `rice-onboard` (§5) | E5 |
-| `rice rollback [<ts>]` | restore from the newest backup, or the given timestamp | E1a |
+| `rice rollback [<ts>]` | undo the **last** apply only — newest backup, or a given timestamp | E1a |
+| `rice uninstall` | undo **every** apply ever run here, back to before rice touched anything | E1a |
 | `rice doctor` | stub: prints `not implemented (track B)`, exits 0 | B1 |
 
 Track C1 later hangs `theme`, `wallpaper`, toggles, scratchpads off the same
@@ -207,7 +208,45 @@ dispatcher.
 
 Reads the manifest, `cp`s saved files back, deletes anything listed in
 `.created`. Best-effort, documented as "returns you to the pre-apply state" —
-not a transactional system.
+not a transactional system. Only undoes the **most recent** `rice apply`.
+
+### `rice uninstall` — full teardown (added 2026-09-12)
+
+Different problem than rollback: someone applied the rice, used it for a
+while (several `rice apply` runs, each managing more paths as the repo
+grows), and now wants their machine back exactly as it was *before any of
+it*, not just before the last change.
+
+**Baseline.** `rice-apply` maintains a second, never-pruned record
+alongside its normal per-apply backups: `~/.local/state/rice/baseline/`
+(`manifest` + `files/`). Every time `rice apply` is about to touch a path
+it hasn't touched before **on this machine**, it captures that path's
+pre-rice state into the baseline before changing anything — `E` (existed,
+content saved under `files/`) or `C` (didn't exist, so uninstall deletes
+it rather than restoring it). Already-baselined paths are left alone on
+later applies, even if their content has since changed — the baseline is
+always the *original*, pre-rice state, not "state before the most recent
+apply." This is why it grows incrementally across every apply instead of
+being a single first-run snapshot: a later commit can add a package
+(e.g. wave 3's `hypr`) that this machine never had a baseline entry for
+yet, and the next `rice apply` picks it up then.
+
+`rice uninstall` reads that manifest, restores every `E` path, deletes
+every `C` path (children before parents, same reasoning as rollback's
+directory handling), then deletes the baseline itself so a future
+`rice apply` starts a clean one. It does **not** touch chezmoi's own
+config or source checkout — re-running `rice apply` afterward works
+without re-cloning.
+
+**Bootstrap caveat:** an apply that updates `rice`/`rice-apply` themselves
+(like the one that introduced this feature) runs under the *old* binary
+still on disk — it can't baseline-track its own update. Baseline tracking
+is only as complete as what's happened since this feature landed on a
+given machine; it can't retroactively account for changes applied before
+it existed.
+
+Covered by `test/rice.sh` (baseline capture, no-recapture, growth, full
+uninstall round trip, declined prompt, fresh restart after uninstall).
 
 ### retention
 
@@ -397,6 +436,15 @@ it returns `$HOME` to the pre-apply state, it is not a transaction.
 **Inspect a backup:** `ls ~/.local/state/rice/backup/` — each dir holds a
 `manifest` (restored paths + the source commit that was applied) and a
 `.created` list. The 10 newest are kept.
+
+**Don't like it, want your machine back entirely:**
+
+    rice uninstall
+
+Undoes every `rice apply` ever run here — not just the last one — back to
+before the rice touched anything. See `rice uninstall` above for how.
+Leaves chezmoi itself installed, so `rice apply` works again later without
+re-cloning.
 
 **Change a monitor / add a host (wave 3):** edit `.chezmoidata/hosts.toml`
 — `[hosts.desktop]` or `[hosts.pentest]`, or add a new `[hosts.<name>]`

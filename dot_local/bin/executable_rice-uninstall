@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# rice-uninstall — reverse everything `rice apply` has ever done on this
+# machine (docs/track-E.md §3), using the baseline that `rice-apply`
+# incrementally captures the first time it touches each path — not just
+# `rice rollback`'s most-recent-apply backup. Restores every path that
+# existed before the rice first touched it; deletes every path the rice
+# created. Leaves chezmoi itself installed and configured — a future
+# `rice apply` works without re-cloning.
+set -euo pipefail
+
+yes=0
+for arg in "$@"; do
+	case $arg in
+		-y|--yes) yes=1 ;;
+		*) echo "rice-uninstall: unexpected argument '$arg'" >&2; exit 2 ;;
+	esac
+done
+
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+baseline_root=$state_home/rice/baseline
+baseline_manifest=$baseline_root/manifest
+baseline_files=$baseline_root/files
+
+if [ ! -s "$baseline_manifest" ]; then
+	echo "nothing to uninstall (no baseline recorded — rice apply was never run, or this already ran)"
+	exit 0
+fi
+
+restore=()
+delete=()
+while IFS=$'\t' read -r op p; do
+	[ -n "$op" ] || continue
+	case $op in
+		E) restore+=("$p") ;;
+		C) delete+=("$p") ;;
+		*)
+			echo "rice-uninstall: unknown baseline entry '$op' for: $p" >&2
+			echo "rice-uninstall: aborting; nothing was changed" >&2
+			exit 1 ;;
+	esac
+done < "$baseline_manifest"
+
+echo "rice uninstall"
+if [ ${#restore[@]} -gt 0 ]; then
+	echo "  will restore to pre-rice content:"
+	printf '    %s\n' "${restore[@]}"
+fi
+if [ ${#delete[@]} -gt 0 ]; then
+	echo "  will delete (created by rice, never existed before):"
+	printf '    %s\n' "${delete[@]}"
+fi
+echo "  this undoes every 'rice apply' ever run here, not just the last one."
+echo "  chezmoi itself is left installed and configured — 'rice apply' works again after this."
+
+if [ "$yes" -ne 1 ]; then
+	printf 'uninstall? [y/N] '
+	read -r reply || reply=""
+	case $reply in
+		y|Y|yes|YES) : ;;
+		*) echo "aborted; nothing changed"; exit 1 ;;
+	esac
+fi
+
+for p in ${restore[@]+"${restore[@]}"}; do
+	if [ -e "$baseline_files/$p" ] || [ -L "$baseline_files/$p" ]; then
+		mkdir -p "$HOME/$(dirname -- "$p")"
+		cp -aT -- "$baseline_files/$p" "$HOME/$p"
+		echo "  restored $p"
+	else
+		echo "  WARN missing from baseline, left as-is: $p" >&2
+	fi
+done
+
+# Reverse order: children before parents, so a directory's rmdir succeeds
+# once everything inside it is already gone (same reasoning as
+# rice-rollback's .created handling — see its comment for why).
+for (( i=${#delete[@]}-1; i>=0; i-- )); do
+	p=${delete[$i]}
+	if [ -d "$HOME/$p" ] && [ ! -L "$HOME/$p" ]; then
+		if rmdir -- "$HOME/$p" 2>/dev/null; then
+			echo "  removed dir $p"
+		else
+			echo "  WARN not empty, left as-is: $p" >&2
+		fi
+	elif [ -e "$HOME/$p" ] || [ -L "$HOME/$p" ]; then
+		rm -f -- "$HOME/$p"
+		echo "  deleted $p"
+	fi
+done
+
+# Clear the baseline last, not first: a future `rice apply` must start a
+# fresh baseline, not assume these paths are already accounted for. This
+# script is itself one of the paths just deleted above (~/.local/bin/
+# rice-uninstall is dot_local/bin/*) — removing its own directory entry
+# here is safe on Linux: the shell already has the file open and keeps
+# running from it until it exits.
+rm -rf -- "$baseline_root"
+
+echo "done. chezmoi and its config were left untouched."

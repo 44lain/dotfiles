@@ -15,7 +15,8 @@ usage: rice <command>
 
   apply            preview, back up, confirm, then chezmoi apply
   diff             chezmoi diff (read-only preview)
-  rollback [<ts>]  restore the pre-apply state (newest backup, or a timestamp)
+  rollback [<ts>]  undo the last apply only (newest backup, or a timestamp)
+  uninstall        undo every apply ever run here, back to before rice
   onboard          first-machine setup wizard (track E5)
   doctor           health check (track B1)
 EOF
@@ -29,6 +30,8 @@ case $cmd in
 		exec rice-apply "$@" ;;
 	rollback)
 		exec rice-rollback "$@" ;;
+	uninstall)
+		exec rice-uninstall "$@" ;;
 	diff)
 		exec chezmoi diff "$@" ;;
 	onboard)

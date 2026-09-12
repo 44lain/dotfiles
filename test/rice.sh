@@ -13,9 +13,10 @@ flunk() { printf '  FAIL %s\n' "$1"; fail=1; }
 sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 mkdir -p "$sandbox/home" "$sandbox/bin"
-cp "$src/executable_rice"          "$sandbox/bin/rice"
-cp "$src/executable_rice-apply"    "$sandbox/bin/rice-apply"
-cp "$src/executable_rice-rollback" "$sandbox/bin/rice-rollback"
+cp "$src/executable_rice"           "$sandbox/bin/rice"
+cp "$src/executable_rice-apply"     "$sandbox/bin/rice-apply"
+cp "$src/executable_rice-rollback"  "$sandbox/bin/rice-rollback"
+cp "$src/executable_rice-uninstall" "$sandbox/bin/rice-uninstall"
 chmod +x "$sandbox/bin"/*
 
 # Fake chezmoi: behaviour driven by files under $sandbox.
@@ -45,6 +46,7 @@ export PATH="$sandbox/bin:$PATH"
 
 run() { "$sandbox/bin/rice" "$@"; }
 bdir="$XDG_STATE_HOME/rice/backup"
+bldir="$XDG_STATE_HOME/rice/baseline"
 
 # expect <want-rc> <stdout+stderr regex> <label> [rice args...]
 expect() {
@@ -61,6 +63,7 @@ expect() {
 # --- dispatcher --------------------------------------------------------------
 expect 2 "usage:"          "bare rice -> usage, exit 2"
 expect 0 "usage:"          "rice --help -> usage, exit 0"          --help
+expect 0 "uninstall"       "rice --help lists uninstall"           --help
 expect 2 "unknown command" "unknown command -> exit 2"            bogus
 expect 0 "not implemented" "rice doctor -> stub, exit 0"          doctor
 expect 0 "^FAKE DIFF$"     "rice diff -> chezmoi diff passthrough" diff
@@ -172,6 +175,99 @@ if [ "$kept" -eq 10 ]; then
 	pass "apply: prunes to 10 backups"
 else
 	flunk "apply: prune (kept $kept)"
+fi
+
+# --- rice-apply: baseline capture (docs/track-E.md §3, `rice uninstall`) ---
+rm -rf "$bdir" "$bldir" "$HOME/.config"
+mkdir -p "$HOME/.config"
+printf 'PRE-EXISTING\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n A .config/new.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+if [ "$(cat "$bldir/files/.config/foo.toml" 2>/dev/null)" = "PRE-EXISTING" ] \
+	&& grep -qP '^E\t\.config/foo\.toml$' "$bldir/manifest" \
+	&& grep -qP '^C\t\.config/new\.toml$' "$bldir/manifest" \
+	&& [ ! -e "$bldir/files/.config/new.toml" ]; then
+	pass "apply: baseline records pre-existing (E) and created (C) paths"
+else
+	flunk "apply: baseline capture (manifest=<$(cat "$bldir/manifest" 2>/dev/null)>)"
+fi
+
+# a second apply on a path already in the baseline must not touch its
+# recorded pre-rice content, even though the file has since changed
+printf 'CHANGED-BY-RICE\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+if [ "$(cat "$bldir/files/.config/foo.toml")" = "PRE-EXISTING" ] \
+	&& [ "$(grep -c '\.config/foo\.toml$' "$bldir/manifest")" -eq 1 ]; then
+	pass "apply: baseline does not re-capture an already-recorded path"
+else
+	flunk "apply: baseline re-capture (content=<$(cat "$bldir/files/.config/foo.toml")>)"
+fi
+
+# a genuinely new path (later commit adds a package) extends the baseline
+printf 'MM .config/foo.toml\n A .config/brand-new-pkg.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+if grep -qP '^C\t\.config/brand-new-pkg\.toml$' "$bldir/manifest"; then
+	pass "apply: baseline grows for a path never seen before"
+else
+	flunk "apply: baseline growth"
+fi
+
+# --- rice-uninstall ------------------------------------------------------
+rm -rf "$bdir" "$bldir" "$HOME/.config"
+expect 0 "nothing to uninstall" "uninstall: no baseline -> exit 0, no-op" uninstall
+
+mkdir -p "$HOME/.config"
+printf 'PRE-RICE\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n A .config/new.toml\n A .bashrc.d\n A .bashrc.d/10-path.sh\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+# simulate what chezmoi apply did to $HOME since
+printf 'RICED\n' > "$HOME/.config/foo.toml"
+printf 'created by rice\n' > "$HOME/.config/new.toml"
+mkdir -p "$HOME/.bashrc.d"
+printf 'echo hi\n' > "$HOME/.bashrc.d/10-path.sh"
+
+out=$(run uninstall -y 2>&1); rc=$?
+if [ $rc -eq 0 ] \
+	&& [ "$(cat "$HOME/.config/foo.toml")" = "PRE-RICE" ] \
+	&& [ ! -e "$HOME/.config/new.toml" ] \
+	&& [ ! -e "$HOME/.bashrc.d" ] \
+	&& [ ! -d "$bldir" ]; then
+	pass "uninstall: restores pre-rice content, deletes created paths, clears baseline"
+else
+	flunk "uninstall: full round trip (rc=$rc out=<$out>)"
+fi
+
+# decline the confirmation prompt -> abort, nothing changed, baseline kept
+rm -rf "$bdir" "$bldir" "$HOME/.config"
+mkdir -p "$HOME/.config"
+printf 'PRE-RICE\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+printf 'RICED\n' > "$HOME/.config/foo.toml"
+out=$(printf 'n\n' | "$sandbox/bin/rice" uninstall 2>&1); rc=$?
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q "aborted" \
+	&& [ "$(cat "$HOME/.config/foo.toml")" = "RICED" ] \
+	&& [ -d "$bldir" ]; then
+	pass "uninstall: decline prompt -> exit 1 aborted, nothing changed"
+else
+	flunk "uninstall: decline prompt (rc=$rc out=<$out>)"
+fi
+
+# after a real uninstall, a fresh apply must start capturing a new baseline
+rm -rf "$bdir" "$bldir" "$HOME/.config"
+mkdir -p "$HOME/.config"
+printf 'V1\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+run uninstall -y >/dev/null 2>&1
+printf 'V2\n' > "$HOME/.config/foo.toml"
+printf 'MM .config/foo.toml\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+if [ "$(cat "$bldir/files/.config/foo.toml" 2>/dev/null)" = "V2" ]; then
+	pass "uninstall: baseline restarts fresh after a full uninstall"
+else
+	flunk "uninstall: baseline restart (content=<$(cat "$bldir/files/.config/foo.toml" 2>/dev/null)>)"
 fi
 
 # --- rice-rollback round trip ------------------------------------------
