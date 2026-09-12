@@ -309,6 +309,10 @@ track C1 on the same `rice`.
 Per package, each one commit: `chezmoi add` → confirm `chezmoi diff` **empty**
 (target identical to current) → `make unstow PKG=<x>` → `rice apply` (replaces
 the symlink with a real file, content identical) → `stow -D` cleanup → commit.
+In practice, waves 1–2 skipped the unstow/restow steps: on `desktop` those
+packages were already plain files, not Stow symlinks, so there was nothing to
+unstow — `chezmoi diff` empty was the only check needed before moving the
+files and committing.
 
 | Wave | Packages | Risk / reason |
 | ---- | -------- | ------------- |
@@ -332,7 +336,7 @@ between waves; any package reverts to Stow by reverting its commit +
 | Wave | Packages | State |
 | ---- | -------- | ----- |
 | 1 | `shell` `starship` `git` `environment.d` | **done** (`track-E-wave-1.md`) — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig`; verifier `test/wave-1.sh` |
-| 2 | `kitty` `yazi` `yt-x` `bin` | todo |
+| 2 | `kitty` `yazi` `yt-x` `bin` | **done** (2026-09-12, commits `d3edf4b..0236f90`) — `dot_config/{kitty,yazi,yt-x}/`; `bin` split into `bin/executable_cs2-mode.sh` (→ `~/bin`) and `dot_local/bin/executable_accela` (→ `~/.local/bin`), first packages to use the `executable_` prefix. All four had empty `chezmoi diff` targets already (no `make unstow` step needed, same as wave 1). No standalone wave-2 plan doc — mechanical, low-risk, done directly against this spec. |
 | 3 | `hypr` `kde` | todo |
 | 4 | `cursor` `konsole` | todo |
 
