@@ -71,7 +71,7 @@
 # --- kitty ---------------------------------------------------------------
 # The baseline only. colors-grootshell.conf is the matugen palette, generated
 # per wallpaper and left untracked.
-!/kitty/.config/kitty/kitty.conf
+!/dot_config/kitty/kitty.conf
 
 # --- yt-x --------------------------------------------------------------
 # Terminal YouTube browser config. No secrets — cookies are read from the
