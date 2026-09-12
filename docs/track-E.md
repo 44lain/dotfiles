@@ -318,18 +318,19 @@ files and committing.
 | ---- | -------- | ------------- |
 | 1 | `shell` `starship` `git` `environment.d` | trivial, no host, no template |
 | 2 | `kitty` `yazi` `yt-x` `bin` | plain files; `bin` exercises `executable_` |
-| 3 | `hypr` `kde` | **the hard wave** — `machine.lua.tmpl`, `.chezmoidata/hosts.toml`, templated `monitors` / `hyprpaper` / `hyprlock` |
-| 4 | `cursor` `konsole` | closes out; validates `_legacy_ini_backup` as `readonly_` |
+| 3 | `hypr` | **the hard part** — `machine.lua.tmpl`, `.chezmoidata/hosts.toml`, templated `monitors` |
+| — | `kde` `cursor` `konsole` | **dropped, not migrated** — too personal/idiosyncratic for a public rice (2026-09-12, commit `d32fa0b`) |
 
 Files in waves 1–2 are layer 1 by default. The layer *concept* — the `profile`
-prompt, the templated `.chezmoiignore` gate — and bootstrap land with wave 3,
-where the first host data appears. `age` + example: wave 4. Stow and chezmoi coexist
-between waves; any package reverts to Stow by reverting its commit +
-`git checkout <old path>` + `make <host>`.
+prompt, the templated `.chezmoiignore` gate — lands with wave 3, where the
+first host data appears. `age` + example is still open (no real secret
+migrated yet, YAGNI per D4). Stow and chezmoi coexisted only while packages
+were still being migrated one at a time; that period is over (see status
+below) and the Makefile's Stow targets are gone.
 
 **Whole-migration rollback:** each wave is an isolated commit;
-`_legacy_ini_backup/` stays the Hyprland return point; `git revert` +
-`make desktop` restores Stow.
+`_legacy_ini_backup/` stays the Hyprland return point; `git revert` the
+relevant commits to go back to any prior state.
 
 ### status
 
@@ -337,8 +338,19 @@ between waves; any package reverts to Stow by reverting its commit +
 | ---- | -------- | ----- |
 | 1 | `shell` `starship` `git` `environment.d` | **done** (`track-E-wave-1.md`) — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig`; verifier `test/wave-1.sh` |
 | 2 | `kitty` `yazi` `yt-x` `bin` | **done** (2026-09-12, commits `d3edf4b..0236f90`) — `dot_config/{kitty,yazi,yt-x}/`; `bin` split into `bin/executable_cs2-mode.sh` (→ `~/bin`) and `dot_local/bin/executable_accela` (→ `~/.local/bin`), first packages to use the `executable_` prefix. All four had empty `chezmoi diff` targets already (no `make unstow` step needed, same as wave 1). No standalone wave-2 plan doc — mechanical, low-risk, done directly against this spec. |
-| 3 | `hypr` (partial) | **hypr done** (2026-09-12, commit `e7864ce`) — see below. **`kde` split out, still todo**: its Stow copy has drifted from the live `kwinrc`/`kglobalshortcutsrc` (personal wallpaper path + 33 Tiling UUID blocks live now has, that the committed copy deliberately stripped) — needs a decision on how to handle a file Plasma rewrites on its own before it's safe to chezmoi-manage, not just a mechanical move. |
-| 4 | `cursor` `konsole` | todo |
+| 3 | `hypr` (partial) | **hypr done** (2026-09-12, commit `e7864ce`). |
+
+**Migration closed 2026-09-12 (commit `d32fa0b`), not via wave 4.**
+Repositioning decision: this repo is a public "clone and use" rice, not a
+personal backup — `kde`, `cursor`, `konsole` were never migrated, they
+were **removed from the repo entirely** (still-Stow, never touched live
+on this host, safe to delete). `accela` (already migrated in wave 2) was
+removed too. `bin/cs2-mode.sh` (CS2 tuning) stayed, but gated the same
+way `accela` was — `profile=personal` only, verified both ways. With
+those three packages gone, every remaining package is chezmoi-managed;
+there is nothing left for Stow to do, so its Makefile targets
+(`desktop`/`pentest`/`dry-run`/`unstow`) were retired at the same time
+instead of waiting for a wave-4 close-out that no longer has a target.
 
 The `rice` command is built (`docs/track-E-rice.md`): `rice apply` (guarded
 apply — preview, backup, confirm, prune), `rice diff`, `rice rollback`,
