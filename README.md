@@ -1,75 +1,109 @@
 # dotfiles
 
-Dotfiles for `desktop` (Fedora/KDE), `pentest` (Parrot/KDE) and `server`
-(Debian, headless), managed with [GNU Stow](https://www.gnu.org/software/stow/).
+Hyprland rice for Fedora, managed with [chezmoi](https://www.chezmoi.io/).
+Meant to be cloned and actually used, not just looked at — pick your
+`profile`/`host` at apply time and it applies cleanly, or restore your own
+machine after a reinstall.
+
+This repo only manages config files. It does not install packages —
+Hyprland, kitty, yazi, etc. need to already be on the system (`chezmoi`
+and `git` are the only hard requirements to apply this repo itself).
 
 ## Apply
 
 ```bash
-sudo dnf install stow gitleaks ShellCheck   # Fedora
-sudo apt install stow shellcheck            # Debian / Parrot
+sudo dnf install chezmoi git   # Fedora
+sudo apt install chezmoi git   # Debian / Parrot
 
-git clone git@github.com:44lain/dotfiles.git ~/dotfiles
-cd ~/dotfiles
-
-make bashrc-hook   # Debian/Parrot only — hooks ~/.bashrc.d into ~/.bashrc
-make desktop        # or: make pentest / make server
-make cursor-extensions   # optional, desktop/pentest
+chezmoi init --apply git@github.com:44lain/dotfiles.git
 ```
 
-`make dry-run PKG=<name>` previews without touching anything.
-`make unstow PKG=<name>` removes a package's symlinks.
+You'll be asked two questions — each one explains itself when you see it,
+but in short:
 
-## How Stow is used here
+- **profile** — `guest` (the default) gets the shared rice only: themes,
+  keybinds, look & feel. `personal` also pulls in a couple of scripts
+  specific to my own machines.
+- **host** — picks monitor layout, keyboard layout and GPU env from
+  [`.chezmoidata/hosts.toml`](.chezmoidata/hosts.toml). Only `desktop` and
+  `pentest` exist right now (my own two machines) — anything else needs a
+  `[hosts.<name>]` block added there first, by hand, before it'll apply.
+  There's no autodetect wizard yet (`rice onboard` is a stub — see below).
 
-Each top-level directory is a Stow package whose internal path mirrors
-`$HOME`. `make desktop` runs `stow` for the packages that host uses, creating
-symlinks in `$HOME` back into this repo — e.g. `konsole/.config/konsolerc` in
-the repo becomes the real `~/.config/konsolerc`. Stow refuses to overwrite an
-existing real file, so nothing is silently replaced.
+## Day to day: the `rice` command
 
-## Packages
+Once applied, `~/.local/bin/rice` is the entry point for everything after
+the first install — never run a bare `chezmoi apply` on this repo, it
+skips the safety net below.
 
-| Package    | Contents                                    | desktop | pentest | server |
-| ---------- | -------------------------------------------- | :-----: | :-----: | :----: |
-| `shell`    | `~/.bashrc.d/` fragments                     |    ✓    |    ✓    |   ✓    |
-| `starship` | prompt                                        |    ✓    |    ✓    |   ✓    |
-| `git`      | `.gitconfig`                                  |    ✓    |    ✓    |   ✓    |
-| `konsole`  | profile + colorschemes                        |    ✓    |    ✓    |        |
-| `cursor`   | `settings.json`, `keybindings.json`           |    ✓    |    ✓    |        |
-| `kde`      | `kdeglobals`, `kwinrc`, `kglobalshortcutsrc`  |    ✓    |    ✓    |        |
-| `bin`      | personal scripts                              |    ✓    |         |        |
-| `hypr`     | Hyprland lua config, hypridle                 |    ✓    |         |        |
-| `kitty`    | terminal baseline (matugen palette at runtime)|    ✓    |         |        |
-| `environment.d` | `systemd --user` PATH glue for uwsm      |    ✓    |         |        |
-| `yt-x`     | terminal YouTube browser config               |    ✓    |         |        |
-| `yazi`     | file-manager config + keymap (zoxide/fzf)      |    ✓    |         |        |
+| Command | What it does |
+| ------- | ------------ |
+| `rice diff` | Preview what would change. Read-only. |
+| `rice apply` | Preview, back up whatever it's about to touch, ask `y/N`, then apply. |
+| `rice rollback [<timestamp>]` | Undo the **last** `rice apply` only. |
+| `rice uninstall` | Undo **every** `rice apply` ever run here — back to before this repo touched anything. Leaves `chezmoi` itself installed. |
+| `rice onboard` | Not built yet — will auto-detect monitors/keyboard/GPU for a new host. |
+| `rice doctor` | Not built yet — health check. |
 
-See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap (60%
-keyboard) and
+Every `rice apply` backs up what it's about to change to
+`~/.local/state/rice/backup/<timestamp>/` before touching anything, so
+`rice rollback` always has something to restore. Nothing here is a real
+transaction — both commands are best-effort, not a database.
+
+## What's in it
+
+| Path | Contents |
+| ---- | -------- |
+| `dot_bashrc.d/`, `dot_config/starship.toml` | shell + prompt |
+| `dot_gitconfig` | git identity (name only — email is machine-local, set by hand: `git config -f ~/.config/git/local user.email you@example.com`) |
+| `dot_config/hypr/` | Hyprland: `hyprland.lua` (keybinds, look & feel, window rules), `hypridle.conf`, `machine.lua.tmpl` (generated per-host monitors/kb layout/GPU env — see `.chezmoidata/hosts.toml`) |
+| `dot_config/kitty/`, `dot_config/yazi/`, `dot_config/yt-x/` | terminal, file manager, terminal YouTube browser |
+| `dot_config/environment.d/` | `systemd --user` PATH glue so uwsm-spawned apps see `~/.local/bin` |
+| `bin/executable_cs2-mode.sh` | CS2 FPS tuning — `profile=personal` only |
+| `dot_local/bin/` | the `rice` command family |
+
+Not in this repo, on purpose: KDE fallback config, Cursor editor settings,
+and a Konsole profile used to live here — dropped, they're personal backup
+material, not part of the rice anyone would actually want. `hyprlock.conf`,
+`hyprpaper.conf` and the wallpaper-derived `colors-grootshell.lua` are also
+left out of version control (personal wallpaper path, not yet templated).
+
+See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap this
+still assumes as a fallback (60% keyboard), and
 [docs/hyprland-wallpaper-and-theming.md](docs/hyprland-wallpaper-and-theming.md)
 for how the wallpaper, border colour and bar/terminal frost fit together, and
 [docs/yt-x.md](docs/yt-x.md) for the terminal YouTube setup (deps and the Zen
-cookie symlink are not automated).
+cookie symlink are not automated). [docs/track-E.md](docs/track-E.md) is the
+full design doc + cookbook for the chezmoi migration this repo went through,
+including a step-by-step for adding a monitor or a new host.
 
 ## Layout
 
 ```
 dotfiles/
-├── shell/     .bashrc.d/{10-path,20-aliases,30-pnpm,40-starship}.sh
-├── starship/  .config/starship.toml
-├── konsole/   .config/konsolerc
-│              .local/share/konsole/{*.colorscheme,*.profile}
-├── cursor/    .config/Cursor/User/{settings,keybindings}.json
-├── kde/       .config/{kdeglobals,kwinrc,kglobalshortcutsrc}
-├── git/       .gitconfig
-├── bin/       bin/cs2-mode.sh
-│              .local/bin/accela
-├── hypr/      .config/hypr/{hyprland.lua,hypridle.conf}
-│              .config/hypr/_legacy_ini_backup/  (pre-lua INI, rollback)
-├── kitty/     .config/kitty/kitty.conf
-├── environment.d/ .config/environment.d/50-local-bin.conf
-├── yt-x/      .config/yt-x/config
-├── yazi/      .config/yazi/{yazi,keymap}.toml
-└── docs/      keyboard.md, hyprland-wallpaper-and-theming.md, yt-x.md, cursor-extensions.txt
+├── .chezmoi.toml.tmpl     profile/host prompts (chezmoi init)
+├── .chezmoidata/hosts.toml   per-host monitors, kb_layout, GPU env
+├── dot_bashrc.d/          10-path, 20-aliases, 30-pnpm, 40-starship
+├── dot_config/
+│   ├── starship.toml
+│   ├── environment.d/50-local-bin.conf
+│   ├── hypr/              hyprland.lua, hypridle.conf, machine.lua.tmpl
+│   │                      readonly__legacy_ini_backup/ (pre-lua, rollback)
+│   ├── kitty/kitty.conf
+│   ├── yazi/{yazi,keymap}.toml
+│   └── yt-x/config
+├── dot_gitconfig
+├── dot_local/bin/         rice, rice-apply, rice-rollback, rice-uninstall
+├── bin/executable_cs2-mode.sh
+├── test/                  rice.sh, wave-1.sh
+└── docs/                  keyboard.md, hyprland-wallpaper-and-theming.md,
+                           yt-x.md, track-E.md, cursor-extensions.txt
+```
+
+## Dev commands (this repo, not the applied config)
+
+```bash
+make check              # shellcheck + gitleaks
+make bashrc-hook        # Debian/Parrot only — hooks ~/.bashrc.d into ~/.bashrc
+make cursor-extensions  # installs the Cursor extensions in docs/cursor-extensions.txt
 ```
