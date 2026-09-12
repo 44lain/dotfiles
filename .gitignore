@@ -77,7 +77,7 @@
 # Terminal YouTube browser config. No secrets — cookies are read from the
 # browser at runtime, never stored. See docs/yt-x.md for deps and the Zen
 # profile symlink (not created by stow).
-!/yt-x/.config/yt-x/config
+!/dot_config/yt-x/config
 
 # --- yazi --------------------------------------------------------------
 # File-manager tweaks only. The `z`/`Z` keymap needs the zoxide and fzf yazi
