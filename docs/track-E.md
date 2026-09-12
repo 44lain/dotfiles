@@ -337,7 +337,7 @@ between waves; any package reverts to Stow by reverting its commit +
 | ---- | -------- | ----- |
 | 1 | `shell` `starship` `git` `environment.d` | **done** (`track-E-wave-1.md`) — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig`; verifier `test/wave-1.sh` |
 | 2 | `kitty` `yazi` `yt-x` `bin` | **done** (2026-09-12, commits `d3edf4b..0236f90`) — `dot_config/{kitty,yazi,yt-x}/`; `bin` split into `bin/executable_cs2-mode.sh` (→ `~/bin`) and `dot_local/bin/executable_accela` (→ `~/.local/bin`), first packages to use the `executable_` prefix. All four had empty `chezmoi diff` targets already (no `make unstow` step needed, same as wave 1). No standalone wave-2 plan doc — mechanical, low-risk, done directly against this spec. |
-| 3 | `hypr` `kde` | todo |
+| 3 | `hypr` (partial) | **hypr done** (2026-09-12, commit `e7864ce`) — see below. **`kde` split out, still todo**: its Stow copy has drifted from the live `kwinrc`/`kglobalshortcutsrc` (personal wallpaper path + 33 Tiling UUID blocks live now has, that the committed copy deliberately stripped) — needs a decision on how to handle a file Plasma rewrites on its own before it's safe to chezmoi-manage, not just a mechanical move. |
 | 4 | `cursor` `konsole` | todo |
 
 The `rice` command is built (`docs/track-E-rice.md`): `rice apply` (guarded
@@ -385,6 +385,23 @@ it returns `$HOME` to the pre-apply state, it is not a transaction.
 **Inspect a backup:** `ls ~/.local/state/rice/backup/` — each dir holds a
 `manifest` (restored paths + the source commit that was applied) and a
 `.created` list. The 10 newest are kept.
+
+**Change a monitor / add a host (wave 3):** edit `.chezmoidata/hosts.toml`
+— `[hosts.desktop]` or `[hosts.pentest]`, or add a new `[hosts.<name>]`
+block. `monitors` is a list of `{ output, mode, position, scale }` tables
+(same fields `hyprctl monitors` and Hyprland's own monitor rules use).
+`gpu_env` is a plain key/value table of env vars to set (empty `{}` for
+no GPU-specific env). Then:
+
+    rice diff    # see machine.lua's rendered diff before touching anything
+    rice apply   # writes ~/.config/hypr/machine.lua, backs up first
+    hyprctl reload
+
+No session needed for this — it's the one file this wave exists to make
+editable directly (see [[feedback-maintainable-simple-config]] in Claude's
+memory). `kb_layout` and `scale` are single values, not lists, under each
+host. To switch which host's data `chezmoi`/`rice` render, edit `host` in
+`~/.config/chezmoi/chezmoi.toml` (machine-local, not this repo).
 
 ### docs (E6) — formalise the repo's own conventions (D10)
 
