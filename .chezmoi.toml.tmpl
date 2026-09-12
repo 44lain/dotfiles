@@ -1,8 +1,17 @@
 {{/* Prompted once at `chezmoi init`, written to ~/.config/chezmoi/chezmoi.toml.
-     See docs/track-E.md §2. */ -}}
+     See docs/track-E.md §2. Labels are deliberately long/explicit: most
+     people apply this without ever opening the README, so the explanation
+     has to live in the prompt itself. */ -}}
+{{- /* .chezmoidata (the .hosts table) is not available yet at this stage
+       of chezmoi init, so the host name can't be validated here — it's
+       checked instead where it's actually used, in
+       dot_config/hypr/machine.lua.tmpl, which fails with a clear message
+       instead of chezmoi's default cryptic one if the host doesn't exist. */ -}}
+{{- $profile := promptStringOnce . "profile" "profile 'guest' (recommended) applies only the shared rice — themes, keybinds, look & feel. 'personal' also pulls in scripts/secrets specific to Luciano's own machines. [personal/guest]" "guest" -}}
+{{- $host := promptStringOnce . "host" "host — picks monitor layout, keyboard layout and GPU env from .chezmoidata/hosts.toml. Only 'desktop' and 'pentest' exist right now; anything else needs a [hosts.<name>] block added there first (docs/track-E.md §2, cookbook). [desktop/pentest]" "desktop" -}}
 [data]
-    profile = {{ promptStringOnce . "profile" "Profile (personal/guest)" "guest" | quote }}
-    host    = {{ promptStringOnce . "host" "Host (desktop/pentest)" "desktop" | quote }}
+    profile = {{ $profile | quote }}
+    host    = {{ $host | quote }}
 
 [git]
     autoCommit = false
