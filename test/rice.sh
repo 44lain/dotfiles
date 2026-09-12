@@ -213,6 +213,21 @@ else
 	flunk "apply: baseline growth"
 fi
 
+# a path that is a *substring* of an already-recorded one must still get
+# its own baseline entry — a plain (unanchored) grep would wrongly treat
+# ".config/app" as already-recorded because of an existing
+# ".config/app-extra" line and silently never capture it
+mkdir -p "$HOME/.config"
+printf 'MM .config/foo.toml\n A .config/app-extra\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+printf 'MM .config/foo.toml\n A .config/app\n' > "$sandbox/status"
+run apply -y >/dev/null 2>&1
+if grep -qP '^C\t\.config/app$' "$bldir/manifest"; then
+	pass "apply: baseline entry for one path is not shadowed by a superstring sibling"
+else
+	flunk "apply: baseline substring collision (manifest=<$(cat "$bldir/manifest")>)"
+fi
+
 # --- rice-uninstall ------------------------------------------------------
 rm -rf "$bdir" "$bldir" "$HOME/.config"
 expect 0 "nothing to uninstall" "uninstall: no baseline -> exit 0, no-op" uninstall

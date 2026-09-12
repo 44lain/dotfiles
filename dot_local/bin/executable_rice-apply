@@ -81,7 +81,10 @@ fi
 mkdir -p "$baseline_files"
 touch "$baseline_manifest"
 for p in ${mods[@]+"${mods[@]}"} ${adds[@]+"${adds[@]}"}; do
-	grep -qF -- "	$p" "$baseline_manifest" && continue
+	# Exact match on the path field — a plain substring grep would wrongly
+	# treat e.g. ".config/app" as already-recorded because of an existing
+	# ".config/app-extra" line, silently skipping its own baseline entry.
+	awk -F'\t' -v p="$p" '$2 == p { found=1 } END { exit !found }' "$baseline_manifest" && continue
 	if [ -e "$HOME/$p" ] || [ -L "$HOME/$p" ]; then
 		( cd "$HOME" && cp -a --parents -- "$p" "$baseline_files/" )
 		printf 'E\t%s\n' "$p" >> "$baseline_manifest"

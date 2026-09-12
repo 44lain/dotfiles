@@ -73,7 +73,8 @@ done
 
 # Reverse order: children before parents, so a directory's rmdir succeeds
 # once everything inside it is already gone (same reasoning as
-# rice-rollback's .created handling — see its comment for why).
+# rice-rollback's .created handling — see its comment for why). Keep both
+# in sync if this changes.
 for (( i=${#delete[@]}-1; i>=0; i-- )); do
 	p=${delete[$i]}
 	if [ -d "$HOME/$p" ] && [ ! -L "$HOME/$p" ]; then
