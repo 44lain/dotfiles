@@ -6,16 +6,19 @@ Meant to be cloned and actually used, not just looked at — pick your
 machine after a reinstall.
 
 This repo only manages config files. It does not install packages —
-Hyprland, kitty, yazi, etc. need to already be on the system (`chezmoi`
-and `git` are the only hard requirements to apply this repo itself).
+Hyprland, kitty, yazi, etc. need to already be on the system. See
+[docs/dependencies.md](docs/dependencies.md) for the full list, with
+`dnf`/`apt`/`pacman` commands for each. `chezmoi` and `git` (below) are
+the only two required just to apply this repo itself.
 
 ## Apply
 
 ```bash
-sudo dnf install chezmoi git   # Fedora
-sudo apt install chezmoi git   # Debian / Parrot
+sudo dnf install chezmoi git       # Fedora
+sudo apt install chezmoi git       # Debian / Parrot
+sudo pacman -S chezmoi git         # Arch
 
-chezmoi init --apply git@github.com:44lain/dotfiles.git
+chezmoi init 44lain    # clones over HTTPS — no SSH key needed
 ```
 
 You'll be asked two questions — each one explains itself when you see it,
@@ -29,6 +32,31 @@ but in short:
   `pentest` exist right now (my own two machines) — anything else needs a
   `[hosts.<name>]` block added there first, by hand, before it'll apply.
   There's no autodetect wizard yet (`rice onboard` is a stub — see below).
+
+That only clones and answers the prompts — nothing has touched `$HOME`
+yet. Look before applying, especially if this isn't a throwaway machine:
+
+```bash
+chezmoi diff     # preview every file this would create or overwrite
+chezmoi apply    # only once the diff looks right
+```
+
+`chezmoi apply` (not `chezmoi init --apply`) on purpose here: this first
+apply is the one time in this whole flow that **doesn't** go through the
+`rice apply` safety net below — `rice` itself doesn't exist on the
+machine until this apply creates it. A plain `chezmoi diff` first is the
+only guard available before that point.
+
+Two loose ends specific to a first install, not automated by the above:
+
+- **Debian/Parrot only:** their stock `~/.bashrc` doesn't source
+  `~/.bashrc.d/*` the way Fedora's does — run
+  `(cd "$(chezmoi source-path)" && make bashrc-hook)` once, or the prompt/
+  aliases in `dot_bashrc.d/` never load.
+- **`rice` not found right after applying:** `~/.local/bin` only lands on
+  `PATH` once `dot_bashrc.d/10-path.sh` is sourced — open a new terminal
+  (or `source ~/.bashrc`), or just run `~/.local/bin/rice <command>` by
+  full path the first time.
 
 ## Day to day: the `rice` command
 
@@ -68,14 +96,16 @@ material, not part of the rice anyone would actually want. `hyprlock.conf`,
 `hyprpaper.conf` and the wallpaper-derived `colors-grootshell.lua` are also
 left out of version control (personal wallpaper path, not yet templated).
 
-See [docs/keyboard.md](docs/keyboard.md) for the KDE shortcut remap this
-still assumes as a fallback (60% keyboard), and
+See [docs/dependencies.md](docs/dependencies.md) for every package this
+rice touches, per distro; [docs/keyboard.md](docs/keyboard.md) for the KDE
+shortcut remap this still assumes as a fallback (60% keyboard);
 [docs/hyprland-wallpaper-and-theming.md](docs/hyprland-wallpaper-and-theming.md)
-for how the wallpaper, border colour and bar/terminal frost fit together, and
-[docs/yt-x.md](docs/yt-x.md) for the terminal YouTube setup (deps and the Zen
-cookie symlink are not automated). [docs/track-E.md](docs/track-E.md) is the
-full design doc + cookbook for the chezmoi migration this repo went through,
-including a step-by-step for adding a monitor or a new host.
+for how the wallpaper, border colour and bar/terminal frost fit together;
+[docs/yt-x.md](docs/yt-x.md) for the terminal YouTube setup (deps and the
+Zen cookie symlink are not automated); and
+[docs/track-E.md](docs/track-E.md), the full design doc + cookbook for the
+chezmoi migration this repo went through, including a step-by-step for
+adding a monitor or a new host.
 
 ## Layout
 
@@ -96,8 +126,9 @@ dotfiles/
 ├── dot_local/bin/         rice, rice-apply, rice-rollback, rice-uninstall
 ├── bin/executable_cs2-mode.sh
 ├── test/                  rice.sh, wave-1.sh
-└── docs/                  keyboard.md, hyprland-wallpaper-and-theming.md,
-                           yt-x.md, track-E.md, cursor-extensions.txt
+└── docs/                  dependencies.md, keyboard.md,
+                           hyprland-wallpaper-and-theming.md, yt-x.md,
+                           track-E.md, cursor-extensions.txt
 ```
 
 ## Dev commands (this repo, not the applied config)
