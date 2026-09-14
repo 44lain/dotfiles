@@ -399,7 +399,8 @@ instead of waiting for a wave-4 close-out that no longer has a target.
 
 The `rice` command is built (`docs/track-E-rice.md`): `rice apply` (guarded
 apply — preview, backup, confirm, prune), `rice diff`, `rice rollback`,
-`rice onboard` (stub → E5), `rice doctor` (stub → B1). From wave 2 on, use
+`rice uninstall`, `rice onboard` (autodetect wizard, `docs/track-E-rice.md`
+Task 5), `rice doctor` (stub → B1). From wave 2 on, use
 `rice apply`, not bare `chezmoi apply`.
 
 Wave 1 notes: on the `desktop` host these four packages were already

@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# rice-onboard — first-machine setup wizard (docs/track-E.md §5).
+#   1. deps      chezmoi/git required; age optional (secrets, personal only)
+#   2. init      `chezmoi init 44lain` if not yet initialised
+#   3. git email prompt once, machine-local (~/.config/git/local)
+#   4. profile   personal | guest
+#   5. host      pick existing, or detect a new one (monitors/kb/gpu/scale)
+#   6. write     personal -> repo .chezmoidata/hosts.toml (commit it);
+#                guest    -> local ~/.config/chezmoi/chezmoi.toml only
+#   7. apply     hand off to `rice apply`
+# No gum on PATH -> falls back to plain `read`, same questions.
+set -euo pipefail
+
+self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PATH=$self_dir:$PATH
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- 1. deps (check early, before any other operations) -------------------
+missing=()
+have chezmoi || missing+=(chezmoi)
+have git || missing+=(git)
+have jq || missing+=(jq)
+if [ ${#missing[@]} -gt 0 ]; then
+	echo "rice-onboard: missing required tool(s): ${missing[*]}" >&2
+	echo "  sudo dnf install ${missing[*]}   # Fedora" >&2
+	echo "  sudo apt install ${missing[*]}   # Debian/Ubuntu" >&2
+	exit 1
+fi
+if ! have age; then
+	echo "rice-onboard: note — 'age' not found; secrets (profile=personal) won't work until it's installed" >&2
+	echo "  sudo dnf install age   # Fedora / sudo apt install age   # Debian/Ubuntu" >&2
+fi
+
+ask() {  # ask <prompt> [default] -> prints the answer (default if blank)
+	local prompt=$1 default=${2:-} reply
+	if have gum; then
+		reply=$(gum input --placeholder "$default" --prompt "$prompt: ")
+	else
+		read -r -p "$prompt${default:+ [$default]}: " reply
+	fi
+	if [ -z "$reply" ]; then printf '%s' "$default"; else printf '%s' "$reply"; fi
+}
+
+confirm() {  # confirm <prompt> -> rc 0 yes / 1 no
+	local prompt=$1 reply
+	if have gum; then
+		gum confirm "$prompt"
+		return $?
+	fi
+	read -r -p "$prompt [y/N] " reply
+	case $reply in
+		y|Y|yes|YES) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+detect_kb_layout() {
+	have localectl || return 0
+	localectl status 2>/dev/null | sed -n 's/^[[:space:]]*X11 Layout:[[:space:]]*//p' || true
+}
+
+detect_gpu() {
+	have lspci || return 0
+	local line
+	line=$(lspci | grep -Ei 'vga|3d controller' | head -1) || true
+	case $line in
+		*[Nn][Vv][Ii][Dd][Ii][Aa]*) echo nvidia ;;
+		*[Ii]ntel*) echo intel ;;
+		*[Aa][Mm][Dd]*|*ATI*) echo amd ;;
+	esac
+}
+
+gpu_env_for() {
+	case $1 in
+		nvidia) echo '{ LIBVA_DRIVER_NAME = "nvidia", "__GLX_VENDOR_LIBRARY_NAME" = "nvidia", NVD_BACKEND = "direct" }' ;;
+		*) echo '{}' ;;
+	esac
+}
+
+detect_monitors() {
+	if have hyprctl && have jq; then
+		local out
+		out=$(hyprctl monitors -j 2>/dev/null | jq -r '
+			.[] | "  { output = \"" + .name
+			+ "\", mode = \"" + (.width|tostring) + "x" + (.height|tostring)
+			+ "@" + (.refreshRate|floor|tostring)
+			+ "\", position = \"" + (.x|tostring) + "x" + (.y|tostring)
+			+ "\", scale = " + (.scale|tostring) + " },"' 2>/dev/null || true)
+		if [ -n "$out" ]; then printf '%s\n' "$out"; return; fi
+	fi
+	echo '  { output = "", mode = "preferred", position = "auto", scale = 1 },'
+}
+
+is_known_host() {
+	local h=$1 known
+	for known in ${existing_hosts[@]+"${existing_hosts[@]}"}; do
+		[ "$known" = "$h" ] && return 0
+	done
+	return 1
+}
+
+chezmoi_config=$HOME/.config/chezmoi/chezmoi.toml
+
+# --- 2. init ---------------------------------------------------------------
+if [ ! -f "$chezmoi_config" ]; then
+	chezmoi init 44lain
+fi
+
+# --- 3. git email ----------------------------------------------------------
+current_email=$(git config --get user.email 2>/dev/null || true)
+if [ -z "$current_email" ]; then
+	email=""
+	while [ -z "$email" ]; do
+		email=$(ask "git email for this machine")
+	done
+	git_local=$HOME/.config/git/local
+	mkdir -p "$(dirname "$git_local")"
+	git config -f "$git_local" user.email "$email"
+	echo "git email set: $email (-> $git_local)"
+fi
+
+# --- 4. profile --------------------------------------------------------------
+profile=""
+while true; do
+	profile=$(ask "profile [personal/guest]" guest)
+	case $profile in personal|guest) break ;; esac
+	echo "rice-onboard: profile must be 'personal' or 'guest'" >&2
+done
+
+# --- 5. host -----------------------------------------------------------------
+if ! host_data=$(chezmoi data --format=json); then
+	echo "rice-onboard: 'chezmoi data' failed" >&2
+	exit 1
+fi
+mapfile -t existing_hosts < <(printf '%s' "$host_data" | jq -r '(.hosts // {}) | keys[]')
+
+host_name=""
+is_new=0
+while [ -z "$host_name" ]; do
+	choice=$(ask "host (known: ${existing_hosts[*]:-none}, or 'new')" new)
+	if [ "$choice" = new ]; then
+		new_name=""
+		while [ -z "$new_name" ]; do
+			new_name=$(ask "new host name")
+			case $new_name in
+				*[!A-Za-z0-9_-]*|"")
+					echo "rice-onboard: host name must match [A-Za-z0-9_-]+" >&2
+					new_name="" ;;
+			esac
+			if [ -n "$new_name" ] && is_known_host "$new_name"; then
+				echo "rice-onboard: '$new_name' already exists — pick it from the list instead" >&2
+				new_name=""
+			fi
+		done
+		host_name=$new_name
+		is_new=1
+	elif is_known_host "$choice"; then
+		host_name=$choice
+	else
+		echo "rice-onboard: '$choice' is not a known host" >&2
+	fi
+done
+
+if [ "$is_new" -eq 1 ]; then
+	kb_layout=$(detect_kb_layout)
+	kb_layout=$(ask "keyboard layout (localectl)" "${kb_layout:-us}")
+	gpu=$(detect_gpu)
+	scale=$(ask "scale" 1)
+	monitors_toml=$(detect_monitors)
+	echo "detected monitors:"
+	echo "$monitors_toml"
+	if ! confirm "use this monitor block? (edit the written TOML by hand afterward if not)"; then
+		monitors_toml='  { output = "", mode = "preferred", position = "auto", scale = 1 },'
+	fi
+	gpu_env_toml=$(gpu_env_for "$gpu")
+
+	# --- 6. write --------------------------------------------------------
+	if [ "$profile" = personal ]; then
+		hosts_file=$(chezmoi source-path)/.chezmoidata/hosts.toml
+		printf '\n[hosts.%s]\nkb_layout = "%s"\nscale     = %s\nmonitors  = [\n%s\n]\ngpu_env = %s\n' \
+			"$host_name" "$kb_layout" "$scale" "$monitors_toml" "$gpu_env_toml" >> "$hosts_file"
+		echo "wrote [hosts.$host_name] to $hosts_file — commit it to restore this machine later:"
+		echo "  git -C $(chezmoi source-path) add .chezmoidata/hosts.toml"
+		echo "  git -C $(chezmoi source-path) commit -m 'feat(hosts): add $host_name'"
+	else
+		printf '\n[data.hosts.%s]\nkb_layout = "%s"\nscale     = %s\nmonitors  = [\n%s\n]\ngpu_env = %s\n' \
+			"$host_name" "$kb_layout" "$scale" "$monitors_toml" "$gpu_env_toml" >> "$chezmoi_config"
+		echo "wrote [data.hosts.$host_name] to $chezmoi_config (local only, not in the repo)"
+	fi
+fi
+
+sed -i "s/^    profile = .*/    profile = \"$profile\"/" "$chezmoi_config"
+sed -i "s/^    host    = .*/    host    = \"$host_name\"/" "$chezmoi_config"
+
+# --- 7. apply ----------------------------------------------------------------
+echo "onboarding done — profile=$profile host=$host_name"
+exec rice apply
