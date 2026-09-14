@@ -68,9 +68,13 @@ run() { HOME="$sandbox/home" "$sandbox/bin/rice" "$@"; }
 
 # --- 1. missing chezmoi + git -> exit 1, names both, before any prompt ---
 emptybin=$(mktemp -d)
+scriptbin=$(mktemp -d)
+cp "$sandbox/bin/rice-onboard" "$scriptbin/rice-onboard"
+chmod +x "$scriptbin/rice-onboard"
 ln -s "$(command -v bash)" "$emptybin/bash"
-out=$(PATH="$emptybin" HOME="$sandbox/home" "$sandbox/bin/rice-onboard" 2>&1); rc=$?
-rm -rf "${emptybin:?}"
+ln -s "$(command -v dirname)" "$emptybin/dirname"
+out=$(PATH="$emptybin" HOME="$sandbox/home" "$scriptbin/rice-onboard" 2>&1); rc=$?
+rm -rf "${emptybin:?}" "${scriptbin:?}"
 if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q chezmoi && printf '%s' "$out" | grep -q git; then
 	pass "onboard: missing chezmoi+git -> exit 1, names both"
 else
@@ -90,9 +94,13 @@ answers=$'91384441+44lain@users.noreply.github.com\npersonal\nnew\nlaptop\n\n\ny
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
 cfg="$sandbox/home/.config/chezmoi/chezmoi.toml"
 hosts_file="$sandbox/src/.chezmoidata/hosts.toml"
+age_note_ok=1
+if ! command -v age >/dev/null 2>&1; then
+	printf '%s' "$out" | grep -qi "age" || age_note_ok=0
+fi
 if [ $rc -eq 0 ] \
 	&& [ -f "$SB/chezmoi-init-called" ] \
-	&& printf '%s' "$out" | grep -qi "age" \
+	&& [ "$age_note_ok" -eq 1 ] \
 	&& [ "$(git config -f "$sandbox/home/.config/git/local" --get user.email)" = "91384441+44lain@users.noreply.github.com" ] \
 	&& grep -q '^\[hosts\.laptop\]$' "$hosts_file" \
 	&& grep -q '^kb_layout = "us,br"$' "$hosts_file" \

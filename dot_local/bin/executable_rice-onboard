@@ -11,12 +11,16 @@
 # No gum on PATH -> falls back to plain `read`, same questions.
 set -euo pipefail
 
+self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PATH=$self_dir:$PATH
+
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # --- 1. deps (check early, before any other operations) -------------------
 missing=()
 have chezmoi || missing+=(chezmoi)
 have git || missing+=(git)
+have jq || missing+=(jq)
 if [ ${#missing[@]} -gt 0 ]; then
 	echo "rice-onboard: missing required tool(s): ${missing[*]}" >&2
 	echo "  sudo dnf install ${missing[*]}   # Fedora" >&2
@@ -27,10 +31,6 @@ if ! have age; then
 	echo "rice-onboard: note — 'age' not found; secrets (profile=personal) won't work until it's installed" >&2
 	echo "  sudo dnf install age   # Fedora / sudo apt install age   # Debian/Ubuntu" >&2
 fi
-
-# Now that we know the required tools are available, we can safely use PATH
-self_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-PATH=$self_dir:$PATH
 
 ask() {  # ask <prompt> [default] -> prints the answer (default if blank)
 	local prompt=$1 default=${2:-} reply
@@ -57,7 +57,7 @@ confirm() {  # confirm <prompt> -> rc 0 yes / 1 no
 
 detect_kb_layout() {
 	have localectl || return 0
-	localectl status 2>/dev/null | sed -n 's/^[[:space:]]*X11 Layout:[[:space:]]*//p'
+	localectl status 2>/dev/null | sed -n 's/^[[:space:]]*X11 Layout:[[:space:]]*//p' || true
 }
 
 detect_gpu() {
@@ -129,7 +129,11 @@ while true; do
 done
 
 # --- 5. host -----------------------------------------------------------------
-mapfile -t existing_hosts < <(chezmoi data --format=json | jq -r '(.hosts // {}) | keys[]')
+if ! host_data=$(chezmoi data --format=json); then
+	echo "rice-onboard: 'chezmoi data' failed" >&2
+	exit 1
+fi
+mapfile -t existing_hosts < <(printf '%s' "$host_data" | jq -r '(.hosts // {}) | keys[]')
 
 host_name=""
 is_new=0
@@ -144,6 +148,10 @@ while [ -z "$host_name" ]; do
 					echo "rice-onboard: host name must match [A-Za-z0-9_-]+" >&2
 					new_name="" ;;
 			esac
+			if [ -n "$new_name" ] && is_known_host "$new_name"; then
+				echo "rice-onboard: '$new_name' already exists — pick it from the list instead" >&2
+				new_name=""
+			fi
 		done
 		host_name=$new_name
 		is_new=1
