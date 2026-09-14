@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # rice-onboard — first-machine setup wizard (docs/track-E.md §5).
 #   1. deps      chezmoi/git required; age optional (secrets, personal only)
 #   2. init      `chezmoi init 44lain` if not yet initialised
@@ -9,8 +9,7 @@
 #                guest    -> local ~/.config/chezmoi/chezmoi.toml only
 #   7. apply     hand off to `rice apply`
 # No gum on PATH -> falls back to plain `read`, same questions.
-set -u
-set -e
+set -euo pipefail
 
 have() { command -v "$1" >/dev/null 2>&1; }
 

@@ -13,7 +13,7 @@ pass()  { printf '  ok   %s\n' "$1"; }
 flunk() { printf '  FAIL %s\n' "$1"; fail=1; }
 
 sandbox=$(mktemp -d)
-trap 'rm -rf "$sandbox"' EXIT
+trap 'rm -rf "${sandbox:?}"' EXIT
 mkdir -p "$sandbox/home" "$sandbox/bin" "$sandbox/src/.chezmoidata"
 cp "$src/executable_rice"         "$sandbox/bin/rice"
 cp "$src/executable_rice-apply"   "$sandbox/bin/rice-apply"
@@ -68,8 +68,9 @@ run() { HOME="$sandbox/home" "$sandbox/bin/rice" "$@"; }
 
 # --- 1. missing chezmoi + git -> exit 1, names both, before any prompt ---
 emptybin=$(mktemp -d)
+ln -s "$(command -v bash)" "$emptybin/bash"
 out=$(PATH="$emptybin" HOME="$sandbox/home" "$sandbox/bin/rice-onboard" 2>&1); rc=$?
-rm -rf "$emptybin"
+rm -rf "${emptybin:?}"
 if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q chezmoi && printf '%s' "$out" | grep -q git; then
 	pass "onboard: missing chezmoi+git -> exit 1, names both"
 else
@@ -77,7 +78,7 @@ else
 fi
 
 # --- 2. happy path: personal, new host, full detection ------------------
-rm -rf "$sandbox/home"; mkdir -p "$sandbox/home"
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 : > "$sandbox/status"   # rice apply at the end: nothing pending
 printf '{"hosts":{"desktop":{},"pentest":{}}}' > "$SB/data.json"
 printf '   X11 Layout: us,br\n' > "$SB/localectl-status"
@@ -104,7 +105,7 @@ else
 fi
 
 # --- 3. guest + new host -> local chezmoi.toml only, repo untouched -----
-rm -rf "$sandbox/home"; mkdir -p "$sandbox/home"
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 before_hosts=$(cat "$hosts_file")
 answers=$'nobody@example.com\nguest\nnew\nguestbox\n\n\nn\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
@@ -120,7 +121,7 @@ else
 fi
 
 # --- 4. existing host picked -> no detection, config updated only -------
-rm -rf "$sandbox/home"; mkdir -p "$sandbox/home"
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 before_hosts=$(cat "$hosts_file")
 answers=$'x@example.com\npersonal\npentest\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
