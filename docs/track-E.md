@@ -320,21 +320,27 @@ Bash + `gum` for the TUI (menu, input, confirm). Fallback: no `gum` → plain
 1. **Deps** — check `chezmoi`, `git`, `age`. Missing → print the
    `sudo dnf/apt install …` line (same rule as §4, never a silent install).
 2. **Init** — no `~/.config/chezmoi/chezmoi.toml` → `chezmoi init <repo>`.
-3. **Profile** — `gum choose personal guest`.
-4. **Host** — list hosts already in `.chezmoidata/hosts.toml` + a "new" option.
+3. **Git email** — if `git config --get user.email` already resolves (follows
+   the `[include]`), skip — idempotent, does not reprompt on a re-run.
+   Otherwise prompt for an email (`gum input` / `read`, non-empty), then
+   `git config -f ~/.config/git/local user.email "<email>"`. Always
+   machine-local (same file `.chezmoiignore` already excludes), independent
+   of `profile` — every machine needs its own.
+4. **Profile** — `gum choose personal guest`.
+5. **Host** — list hosts already in `.chezmoidata/hosts.toml` + a "new" option.
    New host, detect and pre-fill:
    - monitors: `hyprctl monitors -j` → build the lines, `gum confirm` / edit
    - `kb_layout`: `localectl status`
    - `gpu`: `lspci | grep -E 'VGA|3D'` → `nvidia` / `intel` / `amd`
    - `scale`: prompt, default `1`
-5. **Where the host data goes:**
+6. **Where the host data goes:**
    - `profile = personal` → write the `[hosts.<name>]` block **into the repo's
      `.chezmoidata/hosts.toml`** and print *"commit this to restore the machine
      later"*. This is goal 4 in practice.
    - `profile = guest` → write to `~/.config/chezmoi/chezmoi.toml` as
      `[data.hosts.<name>]`, **local**, never touching the repo. The guest's
      machine stays intact.
-6. **Apply** — call `rice apply` (§3: diff + backup + confirm).
+7. **Apply** — call `rice apply` (§3: diff + backup + confirm).
 
 **Scope.** Initial machine setup only. Theme / wallpaper / toggle switching is
 track C1 on the same `rice`.
