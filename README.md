@@ -28,10 +28,12 @@ but in short:
   keybinds, look & feel. `personal` also pulls in a couple of scripts
   specific to my own machines.
 - **host** — picks monitor layout, keyboard layout and GPU env from
-  [`.chezmoidata/hosts.toml`](.chezmoidata/hosts.toml). Only `desktop` and
-  `pentest` exist right now (my own two machines) — anything else needs a
-  `[hosts.<name>]` block added there first, by hand, before it'll apply.
-  There's no autodetect wizard yet (`rice onboard` is a stub — see below).
+  [`.chezmoidata/hosts.toml`](.chezmoidata/hosts.toml). `desktop` and
+  `pentest` exist right now (my own two machines) — for anything else,
+  either add a `[hosts.<name>]` block there by hand before applying, or
+  just pick `desktop` for now: `rice` doesn't exist on the machine until
+  the first apply creates it, so run `rice onboard` right after that —
+  it autodetects monitors/keyboard/GPU and adds your host (see below).
 
 That only clones and answers the prompts — nothing has touched `$HOME`
 yet. Look before applying, especially if this isn't a throwaway machine:
@@ -70,7 +72,7 @@ skips the safety net below.
 | `rice apply` | Preview, back up whatever it's about to touch, ask `y/N`, then apply. |
 | `rice rollback [<timestamp>]` | Undo the **last** `rice apply` only. |
 | `rice uninstall` | Undo **every** `rice apply` ever run here — back to before this repo touched anything. Leaves `chezmoi` itself installed. |
-| `rice onboard` | Not built yet — will auto-detect monitors/keyboard/GPU for a new host. |
+| `rice onboard` | First-machine wizard: prompts for a git email if unset, then profile/host — autodetects monitors/keyboard/GPU for a new host and adds it (to the repo if `personal`, local-only if `guest`), then hands off to `rice apply`. |
 | `rice doctor` | Not built yet — health check. |
 
 Every `rice apply` backs up what it's about to change to
@@ -83,7 +85,7 @@ transaction — both commands are best-effort, not a database.
 | Path | Contents |
 | ---- | -------- |
 | `dot_bashrc.d/`, `dot_config/starship.toml` | shell + prompt |
-| `dot_gitconfig` | git identity (name only — email is machine-local, set by hand: `git config -f ~/.config/git/local user.email you@example.com`) |
+| `dot_gitconfig` | git identity (name only — email is machine-local; `rice onboard` prompts for it, or set by hand: `git config -f ~/.config/git/local user.email you@example.com`) |
 | `dot_config/hypr/` | Hyprland: `hyprland.lua` (keybinds, look & feel, window rules), `hypridle.conf`, `machine.lua.tmpl` (generated per-host monitors/kb layout/GPU env — see `.chezmoidata/hosts.toml`) |
 | `dot_config/kitty/`, `dot_config/yazi/`, `dot_config/yt-x/` | terminal, file manager, terminal YouTube browser |
 | `dot_config/environment.d/` | `systemd --user` PATH glue so uwsm-spawned apps see `~/.local/bin` |

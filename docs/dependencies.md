@@ -108,6 +108,19 @@ packaged anywhere — installed by hand per docs/yt-x.md.
 Assumes Steam + Counter-Strike 2 already installed; the script itself has
 no extra package dependency beyond that.
 
+## `rice onboard` and secrets — optional
+
+Neither is required to apply this repo — `rice onboard` falls back to
+plain `read` prompts without `gum`, and `age` is only needed for the
+`profile=personal` secrets example (§4 of `docs/track-E.md`). Both are
+checked by `rice onboard` itself, which prints the install line rather
+than failing silently if either is missing.
+
+| What | Fedora (`dnf`) | Debian/Ubuntu (`apt`) | Arch (`pacman`) |
+| ---- | --------------- | ---------------------- | ---------------- |
+| gum (nicer `rice onboard` prompts) | `gum` | not in stable repos — the [charm apt repo](https://github.com/charmbracelet/gum#installation) | `gum` |
+| age (secrets, `profile=personal` only) | `age` | `age` | `age` |
+
 ## Dev tooling for this repo (not applied to your `$HOME`)
 
 `make check` needs `shellcheck` and `gitleaks` — Fedora: `sudo dnf install
