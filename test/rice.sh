@@ -35,6 +35,13 @@ case "$1" in
 esac
 FAKE
 chmod +x "$sandbox/bin/chezmoi"
+
+cat > "$sandbox/bin/rice-doctor" <<'FAKE'
+#!/usr/bin/env bash
+echo "FAKE DOCTOR"
+FAKE
+chmod +x "$sandbox/bin/rice-doctor"
+
 mkdir -p "$sandbox/src"
 git -C "$sandbox/src" init -q
 git -C "$sandbox/src" commit -q --allow-empty -m seed
@@ -65,7 +72,7 @@ expect 2 "usage:"          "bare rice -> usage, exit 2"
 expect 0 "usage:"          "rice --help -> usage, exit 0"          --help
 expect 0 "uninstall"       "rice --help lists uninstall"           --help
 expect 2 "unknown command" "unknown command -> exit 2"            bogus
-expect 0 "not implemented" "rice doctor -> stub, exit 0"          doctor
+expect 0 "^FAKE DOCTOR$"   "rice doctor -> delegates to rice-doctor" doctor
 expect 0 "^FAKE DIFF$"     "rice diff -> chezmoi diff passthrough" diff
 expect 1 "not built yet"   "rice onboard -> not-built, exit 1"    onboard
 

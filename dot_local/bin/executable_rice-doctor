@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# rice-doctor — health check (track B1, docs/ROADMAP.md). Read-only: never
+# mutates the environment. Groups: configs parse, services up, fonts
+# present, theme coherent. FAIL -> exit 1; WARN is informational only.
+set -uo pipefail
+
+fail=0
+ok()   { printf '  ok   %s\n' "$1"; }
+warn() { printf '  WARN %s\n' "$1"; }
+bad()  { printf '  FAIL %s\n' "$1"; fail=1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+echo "== configs parse =="
+if have chezmoi && src=$(chezmoi source-path 2>/dev/null) && [ -n "$src" ]; then
+	# .chezmoi.*.tmpl (e.g. .chezmoi.toml.tmpl) is chezmoi's own init-time
+	# config, not a managed dotfile — it uses promptStringOnce, which only
+	# exists under `chezmoi init`, so execute-template can't render it here.
+	while IFS= read -r -d '' tmpl; do
+		rel=${tmpl#"$src"/}
+		if out=$(chezmoi execute-template -f "$tmpl" 2>&1); then
+			ok "template renders: $rel"
+		else
+			bad "template renders: $rel -- ${out##*$'\n'}"
+		fi
+	done < <(find "$src" -name '*.tmpl' ! -name '.chezmoi.*' -print0 2>/dev/null)
+else
+	bad "chezmoi source-path failed"
+fi
+
+if have Hyprland; then
+	if out=$(Hyprland --verify-config 2>&1); then
+		ok "Hyprland --verify-config"
+	else
+		bad "Hyprland --verify-config -- ${out##*$'\n'}"
+	fi
+else
+	warn "Hyprland not on PATH, skipping --verify-config"
+fi
+
+echo "== services up =="
+if have pgrep && pgrep -f 'qs -p.*grootshell' >/dev/null 2>&1; then
+	ok "grootshell (qs) running"
+else
+	bad "grootshell (qs) not running"
+fi
+if have pgrep && pgrep -x hypridle >/dev/null 2>&1; then
+	ok "hypridle running"
+else
+	bad "hypridle not running"
+fi
+# Services retired from autostart (see hyprland.lua) that shouldn't linger
+# from an old systemd --user enable. Add to this list as more get retired.
+retired_services="mako.service"
+if have systemctl; then
+	for svc in $retired_services; do
+		if systemctl --user is-active --quiet "$svc" 2>/dev/null; then
+			warn "$svc is active (retired from autostart)"
+		fi
+	done
+fi
+
+echo "== fonts present =="
+if have fc-list; then
+	fonts=$(fc-list)
+	for font in "Material Symbols Rounded" "Rubik" "CaskaydiaCove Nerd Font Mono"; do
+		if grep -qiF "$font" <<<"$fonts"; then
+			ok "font: $font"
+		else
+			bad "font missing: $font"
+		fi
+	done
+else
+	warn "fc-list not on PATH, skipping font checks"
+fi
+
+echo "== theme coherent =="
+wallpaper_path=""
+if have chezmoi && have jq; then
+	wallpaper_path=$(chezmoi data --format=json 2>/dev/null | jq -r '.wallpaper_path // empty' 2>/dev/null || true)
+fi
+if [ -z "$wallpaper_path" ]; then
+	warn "wallpaper_path not set (hyprlock/hyprpaper will fail at rice apply)"
+elif [ -f "$wallpaper_path" ]; then
+	ok "wallpaper_path exists: $wallpaper_path"
+else
+	bad "wallpaper_path set but missing: $wallpaper_path"
+fi
+
+for f in "$HOME/.config/hypr/colors-grootshell.lua" "$HOME/.config/kitty/colors-grootshell.conf"; do
+	if [ -s "$f" ]; then
+		ok "generated theme file present: $f"
+	else
+		warn "generated theme file missing (ok before the first theme regenerate): $f"
+	fi
+done
+
+exit $fail

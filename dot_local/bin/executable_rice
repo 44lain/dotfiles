@@ -41,8 +41,7 @@ case $cmd in
 		echo "rice onboard: not built yet (track E5 / wave 3)" >&2
 		exit 1 ;;
 	doctor)
-		echo "rice doctor: not implemented (track B1)"
-		exit 0 ;;
+		exec rice-doctor "$@" ;;
 	help|-h|--help)
 		usage
 		exit 0 ;;
