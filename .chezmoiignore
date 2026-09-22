@@ -13,13 +13,14 @@ Makefile
 # docs/track-E.md.
 .config/git/local
 
-# --- hypr files not yet templated (personal wallpaper path) ------------
+# --- hypr generated output (matugen, not chezmoi) -----------------------
 # Untracked (see .gitignore), but chezmoi reads the filesystem directly so
-# they still need hiding here or they'd become junk targets under
-# ~/.config/hypr. wave 3 stopped at machine.lua; wallpaper templating is a
-# separate follow-up (docs/track-E.md status table).
-.config/hypr/hyprlock.conf
-.config/hypr/hyprpaper.conf
+# it still needs hiding here or it'd become a junk target under
+# ~/.config/hypr. Regenerated live by matugen on every wallpaper/theme
+# change — tracking it in chezmoi would fight that pipeline (permanent
+# diff, or rice apply reverting the current palette). hyprlock.conf and
+# hyprpaper.conf were the same shape until wave 4 templated them
+# (dot_config/hypr/hyprlock.conf.tmpl / hyprpaper.conf.tmpl).
 .config/hypr/colors-grootshell.lua
 
 # --- layer 3 — personal, withheld from guest installs (docs/track-E.md §2) -

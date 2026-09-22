@@ -12,6 +12,11 @@
 [data]
     profile = {{ $profile | quote }}
     host    = {{ $host | quote }}
+    {{/* Not prompted here — left blank on purpose. hyprlock.conf.tmpl and
+         hyprpaper.conf.tmpl fail with a clear message until this is set by
+         hand or via `rice onboard`'s optional wallpaper prompt (machine-
+         local, same treatment as the git email — never committed). */ -}}
+    wallpaper_path = ""
 
 [git]
     autoCommit = false

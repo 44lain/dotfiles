@@ -41,12 +41,14 @@
 
 # --- hypr ----------------------------------------------------------------
 # Hyprland lua config + hypridle + the chezmoi-generated per-host machine
-# data (docs/track-E.md §2). hyprpaper.conf and hyprlock.conf carry a
-# personal wallpaper path and are left untracked, same as kwinrc's was —
-# not yet migrated (wave 3 left them out, see docs/track-E.md status table).
+# data (docs/track-E.md §2). hyprlock.conf.tmpl / hyprpaper.conf.tmpl (wave
+# 4) render the personal wallpaper path from wallpaper_path, kept
+# machine-local — the templates themselves carry no personal data.
 # _legacy_ini_backup/ is the pre-lua INI config, kept as a rollback point.
 !/dot_config/hypr/hyprland.lua
 !/dot_config/hypr/hypridle.conf
+!/dot_config/hypr/hyprlock.conf.tmpl
+!/dot_config/hypr/hyprpaper.conf.tmpl
 !/dot_config/hypr/machine.lua.tmpl
 !/dot_config/hypr/readonly__legacy_ini_backup/*.conf
 !/dot_config/hypr/readonly__legacy_ini_backup/conf.d/*.conf

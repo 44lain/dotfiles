@@ -1,0 +1,38 @@
+{{- if not .wallpaper_path -}}
+{{- fail "wallpaper_path is not set. Edit ~/.config/chezmoi/chezmoi.toml's [data] wallpaper_path (or run `rice onboard`) — see docs/track-E.md." -}}
+{{- end -}}
+$wallpaper = {{ .wallpaper_path }}
+
+background {
+    monitor =
+    path = $wallpaper
+    blur_passes = 1
+    blur_size = 4
+}
+
+input-field {
+    monitor =
+    size = 260, 50
+    outline_thickness = 2
+    dots_center = true
+    fade_on_empty = false
+    placeholder_text = <i>senha…</i>
+    hide_input = false
+    position = 0, -40
+    halign = center
+    valign = center
+}
+
+label {
+    monitor =
+    text = $TIME
+    font_size = 64
+    position = 0, 120
+    halign = center
+    valign = center
+}
+
+general {
+    grace = 2
+    hide_cursor = true
+}

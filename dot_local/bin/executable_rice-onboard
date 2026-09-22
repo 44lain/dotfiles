@@ -3,11 +3,12 @@
 #   1. deps      chezmoi/git required; age optional (secrets, personal only)
 #   2. init      `chezmoi init 44lain` if not yet initialised
 #   3. git email prompt once, machine-local (~/.config/git/local)
-#   4. profile   personal | guest
-#   5. host      pick existing, or detect a new one (monitors/kb/gpu/scale)
-#   6. write     personal -> repo .chezmoidata/hosts.toml (commit it);
+#   4. wallpaper prompt once (optional), machine-local chezmoi.toml [data]
+#   5. profile   personal | guest
+#   6. host      pick existing, or detect a new one (monitors/kb/gpu/scale)
+#   7. write     personal -> repo .chezmoidata/hosts.toml (commit it);
 #                guest    -> local ~/.config/chezmoi/chezmoi.toml only
-#   7. apply     hand off to `rice apply`
+#   8. apply     hand off to `rice apply`
 # No gum on PATH -> falls back to plain `read`, same questions.
 set -euo pipefail
 
@@ -120,7 +121,24 @@ if [ -z "$current_email" ]; then
 	echo "git email set: $email (-> $git_local)"
 fi
 
-# --- 4. profile --------------------------------------------------------------
+# --- 4. wallpaper (optional) ------------------------------------------------
+# hyprlock.conf.tmpl / hyprpaper.conf.tmpl fail loudly at `rice apply` until
+# this is set — skipping here just means setting it later by hand.
+if grep -q '^[[:space:]]*wallpaper_path[[:space:]]*=' "$chezmoi_config"; then
+	current_wallpaper=$(sed -n 's/^[[:space:]]*wallpaper_path = "\(.*\)"$/\1/p' "$chezmoi_config")
+else
+	current_wallpaper=""
+	sed -i '/^\[data\]/a\    wallpaper_path = ""' "$chezmoi_config"
+fi
+if [ -z "$current_wallpaper" ]; then
+	wallpaper=$(ask "wallpaper path for hyprlock/hyprpaper (optional, Enter to skip — set later in $chezmoi_config)")
+	if [ -n "$wallpaper" ]; then
+		sed -i "s|^\([[:space:]]*\)wallpaper_path = .*|\1wallpaper_path = \"$wallpaper\"|" "$chezmoi_config"
+		echo "wallpaper path set: $wallpaper (-> $chezmoi_config)"
+	fi
+fi
+
+# --- 5. profile --------------------------------------------------------------
 profile=""
 while true; do
 	profile=$(ask "profile [personal/guest]" guest)
@@ -128,7 +146,7 @@ while true; do
 	echo "rice-onboard: profile must be 'personal' or 'guest'" >&2
 done
 
-# --- 5. host -----------------------------------------------------------------
+# --- 6. host -----------------------------------------------------------------
 if ! host_data=$(chezmoi data --format=json); then
 	echo "rice-onboard: 'chezmoi data' failed" >&2
 	exit 1
@@ -175,7 +193,7 @@ if [ "$is_new" -eq 1 ]; then
 	fi
 	gpu_env_toml=$(gpu_env_for "$gpu")
 
-	# --- 6. write --------------------------------------------------------
+	# --- 7. write --------------------------------------------------------
 	if [ "$profile" = personal ]; then
 		hosts_file=$(chezmoi source-path)/.chezmoidata/hosts.toml
 		printf '\n[hosts.%s]\nkb_layout = "%s"\nscale     = %s\nmonitors  = [\n%s\n]\ngpu_env = %s\n' \
@@ -193,6 +211,6 @@ fi
 sed -i "s/^    profile = .*/    profile = \"$profile\"/" "$chezmoi_config"
 sed -i "s/^    host    = .*/    host    = \"$host_name\"/" "$chezmoi_config"
 
-# --- 7. apply ----------------------------------------------------------------
+# --- 8. apply ----------------------------------------------------------------
 echo "onboarding done — profile=$profile host=$host_name"
 exec rice apply

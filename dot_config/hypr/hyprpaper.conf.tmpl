@@ -1,0 +1,20 @@
+{{- if not .wallpaper_path -}}
+{{- fail "wallpaper_path is not set. Edit ~/.config/chezmoi/chezmoi.toml's [data] wallpaper_path (or run `rice onboard`) — see docs/track-E.md." -}}
+{{- end -}}
+{{- if not (hasKey .hosts .host) -}}
+{{- fail (printf "host %q (from ~/.config/chezmoi/chezmoi.toml) has no [hosts.%s] entry in .chezmoidata/hosts.toml. Known hosts: %s." .host .host (keys .hosts | join ", ")) -}}
+{{- end -}}
+ipc = on
+splash = false
+
+# hyprpaper 0.8.x: sintaxe nova em bloco (o antigo `preload =` /
+# `wallpaper = MON,path` foi removido e era ignorado silenciosamente).
+# One block per monitor in .chezmoidata/hosts.toml (host = "{{ .host }}") — a
+# blank monitor name is hyprpaper's "any monitor not matched above".
+{{- range (index .hosts .host).monitors }}
+
+wallpaper {
+    monitor = {{ .output }}
+    path = {{ $.wallpaper_path }}
+}
+{{- end }}
