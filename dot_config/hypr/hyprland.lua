@@ -345,6 +345,10 @@ hl.on("hyprland.start", function()
     -- hl.exec_cmd("uwsm app -- waybar")
     -- hl.exec_cmd("uwsm app -- mako")
     hl.exec_cmd("uwsm app -- qs -p " .. os.getenv("HOME") .. "/.config/quickshell/grootshell")
+    -- Hyprland/Wayland não tem "primary monitor"; jogos via XWayland (Elden Ring
+    -- por Wine/Hydra) fixam a resolução no output primário do X, que reseta a
+    -- cada login. Fixa DP-1 como primário pra ele abrir sempre em 1920x1080.
+    hl.exec_cmd("xrandr --output DP-1 --primary")
     -- hyprpaper saiu: o grootshell (modules/background/Background.qml) desenha o
     -- wallpaper por tela e recolore junto com o tema. hyprpaper.conf fica no
     -- disco (já migrado pra sintaxe 0.8.x) como fallback — reative esta linha e
