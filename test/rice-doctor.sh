@@ -38,13 +38,15 @@ chmod +x "$sandbox/bin/chezmoi"
 
 cat > "$sandbox/bin/Hyprland" <<'FAKE'
 #!/usr/bin/env bash
-if [ "$1" = "--verify-config" ]; then
-	if [ -f "$SB/hyprland-verify-fails" ]; then
-		echo "config has errors" >&2
-		exit 1
-	fi
-	echo "config ok"
-fi
+case "$1" in
+	--version) cat "$SB/hyprland-version" 2>/dev/null ;;
+	--verify-config)
+		if [ -f "$SB/hyprland-verify-fails" ]; then
+			echo "config has errors" >&2
+			exit 1
+		fi
+		echo "config ok" ;;
+esac
 FAKE
 chmod +x "$sandbox/bin/Hyprland"
 
@@ -122,6 +124,7 @@ reset_healthy() {
 	printf 'x' > "$sandbox/home/.config/kitty/colors-grootshell.conf"
 	rm -rf "$SB/apt"; mkdir -p "$SB/apt"
 	rm -f "$SB/os-release"
+	printf 'Hyprland 0.56.2 built from branch main at commit abc123\n' > "$SB/hyprland-version"
 }
 
 # --- 1. everything healthy -> exit 0, no FAIL/WARN ------------------------
@@ -318,6 +321,36 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ok   all 1 checked dependenc
 	pass "doctor D9: all present -> ok"
 else
 	flunk "doctor D9 (rc=$rc out=<$out>)"
+fi
+
+# V1. Hyprland older than the minimum -> FAIL
+reset_healthy
+printf 'Hyprland 0.52.2 built from branch main\n' > "$SB/hyprland-version"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'FAIL.*0.52.2.*0.55'; then
+	pass "doctor V1: Hyprland below minimum -> FAIL"
+else
+	flunk "doctor V1 (rc=$rc out=<$out>)"
+fi
+
+# V2. exactly the minimum -> ok
+reset_healthy
+printf 'Hyprland 0.55.2 built from branch v0.55.2 at commit efb50993780079460b0cbed1363e2166a2de1d9f clean ([gha] Nix: update inputs).\n' > "$SB/hyprland-version"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ok   Hyprland 0.55.2'; then
+	pass "doctor V2: Hyprland at minimum -> ok"
+else
+	flunk "doctor V2 (rc=$rc out=<$out>)"
+fi
+
+# V3. unparsable version output -> WARN only
+reset_healthy
+printf 'something unexpected\n' > "$SB/hyprland-version"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'WARN.*Hyprland version'; then
+	pass "doctor V3: unreadable version -> WARN, exit 0"
+else
+	flunk "doctor V3 (rc=$rc out=<$out>)"
 fi
 
 exit $fail

@@ -9,6 +9,7 @@ ok()   { printf '  ok   %s\n' "$1"; }
 warn() { printf '  WARN %s\n' "$1"; }
 bad()  { printf '  FAIL %s\n' "$1"; fail=1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+HYPRLAND_MIN=0.55  # oldest Hyprland hyprland.lua is verified against (docs/dependencies.md)
 
 # os_family — keep identical to the copy in executable_rice-onboard
 # (test/packages.sh checks it). RICE_OS_RELEASE is a test hook.
@@ -73,6 +74,14 @@ else
 fi
 
 if have Hyprland; then
+	ver=$(Hyprland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+	if [ -z "$ver" ]; then
+		warn "could not read the Hyprland version"
+	elif [ "$(printf '%s\n%s\n' "$HYPRLAND_MIN" "$ver" | sort -V | head -1)" = "$HYPRLAND_MIN" ]; then
+		ok "Hyprland $ver (needs $HYPRLAND_MIN or newer)"
+	else
+		bad "Hyprland $ver is older than $HYPRLAND_MIN — hyprland.lua needs a newer Hyprland, see docs/dependencies.md"
+	fi
 	if out=$(Hyprland --verify-config 2>&1); then
 		ok "Hyprland --verify-config"
 	else
