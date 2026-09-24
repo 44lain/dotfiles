@@ -81,7 +81,7 @@ printf 'ID=ubuntu\nID_LIKE=debian\n' > "$sandbox/osr-ubuntu"
 out=$(RICE_OS_RELEASE="$sandbox/osr-ubuntu" PATH="$emptybin" HOME="$sandbox/home" "$scriptbin/rice-onboard" 2>&1); rc=$?
 rm -rf "${emptybin:?}" "${scriptbin:?}"
 if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q chezmoi && printf '%s' "$out" | grep -q git \
-	&& printf '%s' "$out" | grep -q 'sudo apt install' && printf '%s' "$out" | grep -q 'get.chezmoi.io'; then
+	&& printf '%s' "$out" | grep -q 'sudo apt install' && printf '%s' "$out" | grep -q 'get.chezmoi.io' && printf '%s' "$out" | grep -q 'must be on PATH'; then
 	pass "onboard: missing chezmoi+git -> exit 1, names both"
 else
 	flunk "onboard: missing deps (rc=$rc out=<$out>)"
@@ -182,7 +182,7 @@ hook_home
 # shellcheck disable=SC2016  # literal loader text
 printf '\nfor rc in ~/.bashrc.d/*.sh; do . "$rc"; done\n' >> "$sandbox/home/.bashrc"
 before=$(cat "$sandbox/home/.bashrc")
-answers=$'Test User\nx@example.com\n\npersonal\npentest\n'
+answers=$'Test User\nx@example.com\n\npersonal\npentest\ny\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
 if [ $rc -eq 0 ] && [ "$(cat "$sandbox/home/.bashrc")" = "$before" ]; then
 	pass "onboard O7: existing loader -> not asked, not duplicated"

@@ -58,7 +58,8 @@ if [ ${#missing[@]} -gt 0 ]; then
 	install_hint "${missing[*]}" >&2
 	# shellcheck disable=SC2016  # the $(curl ...) is literal text for the user
 	case " ${missing[*]} " in
-		*" chezmoi "*) echo '  not packaged for your release? sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin' >&2 ;;
+		*" chezmoi "*) echo '  not packaged for your release? sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin' >&2
+			echo '  the installer puts chezmoi in ~/.local/bin, which must be on PATH: open a new terminal (or export PATH="$HOME/.local/bin:$PATH"), then re-run rice onboard' >&2 ;;
 	esac
 	exit 1
 fi
