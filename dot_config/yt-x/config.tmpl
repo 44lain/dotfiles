@@ -67,11 +67,16 @@ CONFIG_PER_PAGE="30"
 # passed to --cookies-from-browser yt-dlp option
 # Currently supported browsers are: brave, chrome, chromium, edge, firefox, opera, safari, vivaldi, whale
 # NOTE: this option is entirely dependent on what yt-dlp supports
+# Empty = no cookie access (public videos only). To use your browser's login,
+# set e.g. CONFIG_BROWSER="firefox" (see docs/yt-x.md).
+{{ if eq .profile "personal" -}}
 # Zen Browser (Firefox fork, Flatpak): yt-dlp has no "zen" option, so this points
-# its Firefox cookie parser at a space-free symlink to the Zen profile dir.
-# The symlink is not created by stow — see docs/yt-x.md. Leave empty to disable
-# cookie access (public videos only).
+# its Firefox cookie parser at a space-free symlink to the Zen profile dir
+# (not automated — see docs/yt-x.md).
 CONFIG_BROWSER="firefox:$HOME/.local/share/yt-x-zen-profile"
+{{- else -}}
+CONFIG_BROWSER=""
+{{- end }}
 
 # Text editor for manual configuration/metadata editing
 # Options: vim, nano, code ... (Default: $EDITOR or vi)
@@ -83,8 +88,8 @@ CONFIG_TERMINAL_EXEC=""
 # Duration in seconds for desktop notifications
 CONFIG_NOTIFICATION_DURATION="5"
 
-# Directory where downloads are saved (XDG_VIDEOS_DIR is ~/Vídeos on pt_BR)
-CONFIG_DOWNLOAD_DIR="$HOME/Vídeos/yt-x"
+# Directory where downloads are saved (follows your XDG videos dir)
+CONFIG_DOWNLOAD_DIR="$(xdg-user-dir VIDEOS)/yt-x"
 CONFIG_DOWNLOADS_ENUMERATE="true"
 
 # Automatically check for script updates on startup

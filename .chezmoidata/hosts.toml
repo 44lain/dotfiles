@@ -4,6 +4,14 @@
 # host — that's the one place this needs editing. dot_config/hypr/
 # machine.lua.tmpl renders this into ~/.config/hypr/machine.lua, which
 # hyprland.lua reads at reload. `rice apply` after any change here.
+#
+# Optional per-host keys (all have neutral defaults — omit what you don't need):
+#   terminal        command bound to SUPER+Return          (default "kitty")
+#   file_manager    command bound to SUPER+E               (default: xdg-open $HOME)
+#   browser         command bound to SUPER+B               (default: the system default browser)
+#   primary_monitor output set as X11 primary at login — only matters for
+#                   XWayland games that pin resolution to it (default: unset)
+#   autostart       extra commands started at login, each wrapped in `uwsm app --`
 
 [hosts.desktop]
 kb_layout = "us,br"
@@ -16,6 +24,15 @@ monitors  = [
 # NVIDIA proprietary driver env — see hyprland.lua's old ENV section (now
 # generated from this table).
 gpu_env = { LIBVA_DRIVER_NAME = "nvidia", "__GLX_VENDOR_LIBRARY_NAME" = "nvidia", NVD_BACKEND = "direct" }
+file_manager    = "dolphin"
+browser         = "zen"
+primary_monitor = "DP-1"
+autostart = [
+  "nm-applet --indicator",
+  "blueman-applet",
+  "/usr/bin/kdeconnectd",
+  "kdeconnect-indicator",
+]
 
 [hosts.pentest]
 kb_layout = "us,br"
