@@ -90,7 +90,7 @@ printf '01:00.0 VGA compatible controller: NVIDIA Corporation TU116 [GeForce GTX
 cat > "$SB/hyprctl-monitors.json" <<'EOF'
 [ {"name":"DP-1","width":1920,"height":1080,"refreshRate":143.981,"x":0,"y":0,"scale":1.0} ]
 EOF
-answers=$'91384441+44lain@users.noreply.github.com\n/home/you/Pictures/wallpaper.jpg\npersonal\nnew\nlaptop\n\n\ny\n'
+answers=$'Test User\nyou@example.com\n/home/user/Pictures/wall.jpg\npersonal\nnew\nlaptop\n\n\ny\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
 cfg="$sandbox/home/.config/chezmoi/chezmoi.toml"
 hosts_file="$sandbox/src/.chezmoidata/hosts.toml"
@@ -101,13 +101,13 @@ fi
 if [ $rc -eq 0 ] \
 	&& [ -f "$SB/chezmoi-init-called" ] \
 	&& [ "$age_note_ok" -eq 1 ] \
-	&& [ "$(git config -f "$sandbox/home/.config/git/local" --get user.email)" = "91384441+44lain@users.noreply.github.com" ] \
+	&& [ "$(git config -f "$sandbox/home/.config/git/local" --get user.email)" = "you@example.com" ] \
 	&& grep -q '^\[hosts\.laptop\]$' "$hosts_file" \
 	&& grep -q '^kb_layout = "us,br"$' "$hosts_file" \
 	&& grep -qE '^\s*\{ output = "DP-1", mode = "1920x1080@143",' "$hosts_file" \
 	&& grep -q '^    profile = "personal"$' "$cfg" \
 	&& grep -q '^    host    = "laptop"$' "$cfg" \
-	&& grep -q '^    wallpaper_path = "/home/you/Pictures/wallpaper.jpg"$' "$cfg"; then
+	&& grep -q '^    wallpaper_path = "/home/user/Pictures/wall.jpg"$' "$cfg"; then
 	pass "onboard: personal+new host -> init, email, wallpaper, hosts.toml, config all correct"
 else
 	flunk "onboard: happy path (rc=$rc out=<$out>)"
@@ -116,7 +116,7 @@ fi
 # --- 3. guest + new host -> local chezmoi.toml only, repo untouched -----
 rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 before_hosts=$(cat "$hosts_file")
-answers=$'nobody@example.com\n\nguest\nnew\nguestbox\n\n\nn\n'
+answers=$'Test User\nnobody@example.com\n\nguest\nnew\nguestbox\n\n\nn\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
 cfg="$sandbox/home/.config/chezmoi/chezmoi.toml"
 if [ $rc -eq 0 ] \
@@ -132,7 +132,7 @@ fi
 # --- 4. existing host picked -> no detection, config updated only -------
 rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 before_hosts=$(cat "$hosts_file")
-answers=$'x@example.com\n\npersonal\npentest\n'
+answers=$'Test User\nx@example.com\n\npersonal\npentest\n'
 out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
 cfg="$sandbox/home/.config/chezmoi/chezmoi.toml"
 if [ $rc -eq 0 ] \

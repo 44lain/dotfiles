@@ -2,7 +2,7 @@
 # rice-onboard — first-machine setup wizard (docs/track-E.md §5).
 #   1. deps      chezmoi/git required; age optional (secrets, personal only)
 #   2. init      `chezmoi init 44lain` if not yet initialised
-#   3. git email prompt once, machine-local (~/.config/git/local)
+#   3. git name + email prompt once, machine-local (~/.config/git/local)
 #   4. wallpaper prompt once (optional), machine-local chezmoi.toml [data]
 #   5. profile   personal | guest
 #   6. host      pick existing, or detect a new one (monitors/kb/gpu/scale)
@@ -108,14 +108,24 @@ if [ ! -f "$chezmoi_config" ]; then
 	chezmoi init 44lain
 fi
 
-# --- 3. git email ----------------------------------------------------------
+# --- 3. git identity (machine-local: name + email) -------------------------
+git_local=$HOME/.config/git/local
+current_name=$(git config --get user.name 2>/dev/null || true)
+if [ -z "$current_name" ]; then
+	name=""
+	while [ -z "$name" ]; do
+		name=$(ask "git name for this machine")
+	done
+	mkdir -p "$(dirname "$git_local")"
+	git config -f "$git_local" user.name "$name"
+	echo "git name set: $name (-> $git_local)"
+fi
 current_email=$(git config --get user.email 2>/dev/null || true)
 if [ -z "$current_email" ]; then
 	email=""
 	while [ -z "$email" ]; do
 		email=$(ask "git email for this machine")
 	done
-	git_local=$HOME/.config/git/local
 	mkdir -p "$(dirname "$git_local")"
 	git config -f "$git_local" user.email "$email"
 	echo "git email set: $email (-> $git_local)"

@@ -1,5 +1,3 @@
-[user]
-	name = Luciano Rodrigues
 [include]
 	path = ~/.config/git/local
 [filter "lfs"]
