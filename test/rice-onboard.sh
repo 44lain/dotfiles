@@ -14,6 +14,10 @@ flunk() { printf '  FAIL %s\n' "$1"; fail=1; }
 
 sandbox=$(mktemp -d)
 trap 'rm -rf "${sandbox:?}"' EXIT
+# Run from outside the repo: git would otherwise pick up the clone's own
+# .git/config (e.g. a repo-local user.email) and the wizard would skip prompts.
+cd "$sandbox" || exit 1
+export GIT_CONFIG_NOSYSTEM=1
 mkdir -p "$sandbox/home" "$sandbox/bin" "$sandbox/src/.chezmoidata"
 cp "$src/executable_rice"         "$sandbox/bin/rice"
 cp "$src/executable_rice-apply"   "$sandbox/bin/rice-apply"
