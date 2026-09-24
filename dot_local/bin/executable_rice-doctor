@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rice-doctor — health check (track B1, docs/ROADMAP.md). Read-only: never
-# mutates the environment. Groups: configs parse, services up, fonts
+# mutates the environment. Groups: configs parse, dependencies, services up, fonts
 # present, theme coherent. FAIL -> exit 1; WARN is informational only.
 set -uo pipefail
 
@@ -9,6 +9,51 @@ ok()   { printf '  ok   %s\n' "$1"; }
 warn() { printf '  WARN %s\n' "$1"; }
 bad()  { printf '  FAIL %s\n' "$1"; fail=1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# os_family — keep identical to the copy in executable_rice-onboard
+# (test/packages.sh checks it). RICE_OS_RELEASE is a test hook.
+os_family() {
+	local f=${RICE_OS_RELEASE:-/etc/os-release} id="" like="" k v w
+	[ -r "$f" ] || { echo unknown; return; }
+	while IFS='=' read -r k v; do
+		v=${v//\"/}
+		case $k in ID) id=$v ;; ID_LIKE) like=$v ;; esac
+	done < "$f"
+	for w in $id $like; do
+		case $w in
+			fedora|rhel) echo fedora; return ;;
+			debian|ubuntu) echo debian; return ;;
+			arch) echo arch; return ;;
+		esac
+	done
+	echo unknown
+}
+
+# apt_lookup <pkg> — asks apt's local cache (read-only, no network, no root)
+# for the newest version any configured source offers. Sets APT_BEST and
+# APT_FLAG ("-t <suite>" when the newest is not the default candidate, e.g.
+# Debian/Parrot backports). Returns 1 when apt knows no version at all.
+apt_lookup() {
+	local pkg=$1 ver rest s cand suite=""
+	APT_BEST=""; APT_FLAG=""
+	have apt-cache || return 1
+	# madison line: " pkg | version | https://host/path suite/component arch Packages"
+	while IFS='|' read -r _ ver rest; do
+		ver=${ver//[[:space:]]/}
+		[ -n "$ver" ] || continue
+		case $rest in *dpkg/status*) continue ;; esac
+		s=$(awk '{print $2}' <<<"$rest"); s=${s%%/*}
+		if [ -z "$APT_BEST" ]; then
+			APT_BEST=$ver; suite=$s
+		elif [ "$ver" != "$APT_BEST" ] && [ "$(printf '%s\n%s\n' "$APT_BEST" "$ver" | sort -V | tail -1)" = "$ver" ]; then
+			APT_BEST=$ver; suite=$s
+		fi
+	done < <(apt-cache madison "$pkg" 2>/dev/null)
+	[ -n "$APT_BEST" ] || return 1
+	cand=$(apt-cache policy "$pkg" 2>/dev/null | sed -n 's/^ *Candidate: //p')
+	[ "$cand" = "$APT_BEST" ] || APT_FLAG="-t $suite"
+	return 0
+}
 
 echo "== configs parse =="
 if have chezmoi && src=$(chezmoi source-path 2>/dev/null) && [ -n "$src" ]; then
@@ -22,7 +67,7 @@ if have chezmoi && src=$(chezmoi source-path 2>/dev/null) && [ -n "$src" ]; then
 		else
 			bad "template renders: $rel -- ${out##*$'\n'}"
 		fi
-	done < <(find "$src" -name '*.tmpl' ! -name '.chezmoi.*' -print0 2>/dev/null)
+	done < <(find "$src" -name '*.tmpl' ! -name '.chezmoi.*' ! -path "$src/docs/*" -print0 2>/dev/null)
 else
 	bad "chezmoi source-path failed"
 fi
@@ -35,6 +80,74 @@ if have Hyprland; then
 	fi
 else
 	warn "Hyprland not on PATH, skipping --verify-config"
+fi
+
+echo "== dependencies =="
+family=$(os_family)
+rows=""
+if have chezmoi && have jq; then
+	rows=$(chezmoi data --format=json 2>/dev/null | jq -r --arg fam "$family" '
+		(.packages // {}) | to_entries[] | .value as $p
+		| [.key, ($p.desc // ""), ($p.bin // ""), (($p.required // false) | tostring),
+		   ($p[$fam] // ""), ($p["note_" + $fam] // ""), ($p.manual // ""), ($p.min_version // "")]
+		| join("\u001f")' 2>/dev/null || true)
+fi
+if [ -z "$rows" ]; then
+	ok "no package data to check (.chezmoidata/packages.toml)"
+else
+	total=0; missing=0
+	declare -A by_flag=()
+	extra=()
+	while IFS=$'\037' read -r key desc bin required pkg note manual minv; do
+		[ -n "$bin" ] || continue
+		total=$((total + 1))
+		have "$bin" && continue
+		missing=$((missing + 1))
+		if [ "$required" = true ]; then
+			bad "missing (required): $key ($bin) — $desc"
+		else
+			warn "missing: $key ($bin) — $desc"
+		fi
+		flag=""
+		if [ -n "$pkg" ] && [ "$family" = debian ]; then
+			if apt_lookup "$pkg"; then
+				flag=$APT_FLAG
+				if [ -n "$minv" ] && [ "$(printf '%s\n%s\n' "$minv" "$APT_BEST" | sort -V | head -1)" != "$minv" ]; then
+					extra+=("$key: the newest version apt knows is $APT_BEST, but $minv or newer is needed — see docs/dependencies.md")
+					pkg=""
+				fi
+			else
+				extra+=("$key: apt knows no '$pkg' — run 'sudo apt update' first; if it stays empty this release does not package it (see docs/dependencies.md)")
+				pkg=""
+			fi
+		fi
+		[ -z "$pkg" ] || by_flag["${flag:-plain}"]+=" $pkg"
+		[ -z "$note" ] || extra+=("$key: $note")
+		{ [ -n "$pkg" ] || [ -z "$manual" ]; } || extra+=("$key: $manual")
+	done <<<"$rows"
+	if [ "$missing" -eq 0 ]; then
+		ok "all $total checked dependencies present"
+	else
+		case $family in
+			fedora) inst="sudo dnf install" ;;
+			debian) inst="sudo apt install" ;;
+			arch)   inst="sudo pacman -S" ;;
+			*)      inst="" ;;
+		esac
+		if [ -n "$inst" ]; then
+			if [ "${#by_flag[@]}" -gt 0 ]; then
+				for k in "${!by_flag[@]}"; do
+					f=""; [ "$k" = plain ] || f=" $k"
+					printf '       %s%s%s\n' "$inst" "$f" "${by_flag[$k]}"
+				done
+			fi
+		else
+			echo "       distro not recognised — install the tools above with your package manager"
+		fi
+		if [ "${#extra[@]}" -gt 0 ]; then
+			for i in "${!extra[@]}"; do printf '       note: %s\n' "${extra[$i]}"; done
+		fi
+	fi
 fi
 
 echo "== services up =="
