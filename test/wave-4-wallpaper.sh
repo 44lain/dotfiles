@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Wave-4 wallpaper templating check (docs/track-E.md status table): hyprlock
-# and hyprpaper are chezmoi-managed, fail loudly without wallpaper_path, and
-# hyprpaper's monitor blocks come from .chezmoidata/hosts.toml. Uses a temp
+# and hyprpaper are chezmoi-managed, render fine without wallpaper_path (it is
+# optional), and hyprpaper's monitor blocks come from .chezmoidata/hosts.toml. Uses a temp
 # chezmoi config so it never touches the real ~/.config/chezmoi/chezmoi.toml.
 set -u
 
-repo="/home/user/Documentos/Code/dotfiles"
+repo="$(cd "$(dirname "$0")/.." && pwd)"
 fail=0
 ok()  { printf '  ok   %s\n' "$1"; }
 bad() { printf '  FAIL %s\n' "$1"; fail=1; }
@@ -25,7 +25,8 @@ render() { # render <tmpl-relpath> <wallpaper_path>
 }
 
 # --- managed -----------------------------------------------------------
-managed=$(chezmoi managed)
+render dot_config/hypr/hyprlock.conf.tmpl "" >/dev/null   # writes $tmp/chezmoi.toml
+managed=$(chezmoi managed --source "$repo" --config "$tmp/chezmoi.toml")
 if printf '%s\n' "$managed" | grep -qx '.config/hypr/hyprlock.conf' \
 	&& printf '%s\n' "$managed" | grep -qx '.config/hypr/hyprpaper.conf'; then
 	ok "chezmoi manages hyprlock.conf and hyprpaper.conf"
@@ -33,19 +34,20 @@ else
 	bad "chezmoi does not manage both hyprlock.conf and hyprpaper.conf"
 fi
 
-# --- fails loudly without wallpaper_path --------------------------------
+# --- wallpaper_path is optional -----------------------------------------
 out=$(render dot_config/hypr/hyprlock.conf.tmpl ""); rc=$?
-if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qi wallpaper_path; then
-	ok "hyprlock.conf.tmpl fails with a wallpaper_path-mentioning error when unset"
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'color = ' \
+	&& ! printf '%s' "$out" | grep -q 'path ='; then
+	ok "hyprlock.conf.tmpl renders a solid background when wallpaper_path is unset"
 else
-	bad "hyprlock.conf.tmpl did not fail clearly on empty wallpaper_path: $out"
+	bad "hyprlock.conf.tmpl did not render cleanly on empty wallpaper_path: $out"
 fi
 
 out=$(render dot_config/hypr/hyprpaper.conf.tmpl ""); rc=$?
-if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qi wallpaper_path; then
-	ok "hyprpaper.conf.tmpl fails with a wallpaper_path-mentioning error when unset"
+if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'wallpaper {'; then
+	ok "hyprpaper.conf.tmpl renders no wallpaper blocks when wallpaper_path is unset"
 else
-	bad "hyprpaper.conf.tmpl did not fail clearly on empty wallpaper_path: $out"
+	bad "hyprpaper.conf.tmpl did not render cleanly on empty wallpaper_path: $out"
 fi
 
 # --- renders the set path -----------------------------------------------

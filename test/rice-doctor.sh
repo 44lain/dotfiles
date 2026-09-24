@@ -150,12 +150,12 @@ else
 	flunk "doctor: missing font (rc=$rc out=<$out>)"
 fi
 
-# --- 5. wallpaper_path unset -> WARN only, exit 0 --------------------------
+# --- 5. wallpaper_path unset -> ok (optional), exit 0 --------------------------
 reset_healthy
 printf '{}' > "$SB/data.json"
 out=$(run 2>&1); rc=$?
-if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qi "WARN.*wallpaper_path"; then
-	pass "doctor: wallpaper_path unset -> WARN, exit 0"
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qi "ok .*wallpaper_path not set"; then
+	pass "doctor: wallpaper_path unset -> ok, exit 0"
 else
 	flunk "doctor: wallpaper_path unset (rc=$rc out=<$out>)"
 fi

@@ -1,13 +1,19 @@
-{{- if not .wallpaper_path -}}
-{{- fail "wallpaper_path is not set. Edit ~/.config/chezmoi/chezmoi.toml's [data] wallpaper_path (or run `rice onboard`) — see docs/track-E.md." -}}
-{{- end -}}
+{{- /* wallpaper_path is optional (machine-local, ~/.config/chezmoi/chezmoi.toml
+       [data]). Unset -> a plain dark background, so a first apply on a fresh
+       machine works without asking for a wallpaper. */ -}}
+{{- if .wallpaper_path -}}
 $wallpaper = {{ .wallpaper_path }}
 
+{{ end -}}
 background {
     monitor =
+{{- if .wallpaper_path }}
     path = $wallpaper
     blur_passes = 1
     blur_size = 4
+{{- else }}
+    color = rgba(1e1e2eff)
+{{- end }}
 }
 
 input-field {

@@ -79,7 +79,7 @@ if have chezmoi && have jq; then
 	wallpaper_path=$(chezmoi data --format=json 2>/dev/null | jq -r '.wallpaper_path // empty' 2>/dev/null || true)
 fi
 if [ -z "$wallpaper_path" ]; then
-	warn "wallpaper_path not set (hyprlock/hyprpaper will fail at rice apply)"
+	ok "wallpaper_path not set (optional — hyprlock uses a solid background)"
 elif [ -f "$wallpaper_path" ]; then
 	ok "wallpaper_path exists: $wallpaper_path"
 else

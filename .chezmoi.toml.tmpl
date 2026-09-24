@@ -7,14 +7,14 @@
        checked instead where it's actually used, in
        dot_config/hypr/machine.lua.tmpl, which fails with a clear message
        instead of chezmoi's default cryptic one if the host doesn't exist. */ -}}
-{{- $profile := promptStringOnce . "profile" "profile 'guest' (recommended) applies only the shared rice — themes, keybinds, look & feel. 'personal' also pulls in scripts/secrets specific to Luciano's own machines. [personal/guest]" "guest" -}}
+{{- $profile := promptStringOnce . "profile" "profile 'guest' (recommended) applies only the shared rice — themes, keybinds, look & feel. 'personal' also pulls in scripts/secrets specific to the maintainer's own machines. [personal/guest]" "guest" -}}
 {{- $host := promptStringOnce . "host" "host — picks monitor layout, keyboard layout and GPU env from .chezmoidata/hosts.toml. Only 'desktop' and 'pentest' exist right now; anything else needs a [hosts.<name>] block added there first (docs/track-E.md §2, cookbook). [desktop/pentest]" "desktop" -}}
 [data]
     profile = {{ $profile | quote }}
     host    = {{ $host | quote }}
-    {{/* Not prompted here — left blank on purpose. hyprlock.conf.tmpl and
-         hyprpaper.conf.tmpl fail with a clear message until this is set by
-         hand or via `rice onboard`'s optional wallpaper prompt (machine-
+    {{/* Not prompted here — optional, left blank on purpose. Blank means
+         hyprlock uses a plain dark background and hyprpaper draws nothing.
+         Set it by hand or via `rice onboard`'s wallpaper prompt (machine-
          local, same treatment as the git email — never committed). */ -}}
     wallpaper_path = ""
 
