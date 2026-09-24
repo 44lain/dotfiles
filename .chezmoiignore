@@ -5,8 +5,8 @@
 README.md
 LICENSE
 Makefile
-/docs
-/test
+docs
+test
 
 # --- machine-local -----------------------------------------------------
 # user.email lives here, created per machine, never in the repo. See
