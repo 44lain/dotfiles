@@ -1,0 +1,281 @@
+# Every dependency the rice touches, once. Read by `rice doctor` (missing
+# tools + the exact install command) and rendered into docs/dependencies.md
+# (`make docs`). Adding a dependency = one block here.
+#
+#   desc         what it is for
+#   section      grouping in docs/dependencies.md
+#   bin          command looked up on PATH ("" = documentation only, not checked)
+#   required     true = `rice doctor` FAILs when missing, else WARN
+#   fedora/debian/arch   package name; "" = not packaged for that family
+#   note_<family>        extra hint printed next to the package
+#   manual       what to do when there is no package
+#   min_version  oldest usable version (used to explain an apt release that is too old)
+#
+# "debian" means every Debian-family distro (Debian, Ubuntu, Mint, Kali,
+# Parrot, Pop!_OS...): they share the apt package names.
+
+[packages.hyprland]
+desc        = "compositor"
+section     = "Compositor & session"
+bin         = "Hyprland"
+required    = true
+min_version = "0.55"
+fedora      = "hyprland"
+debian      = "hyprland"
+arch        = "hyprland"
+note_debian = "stable releases keep an old version in the main repo; the newer one is in a backports repo — the command above accounts for that"
+
+[packages.hypridle]
+desc     = "idle daemon"
+section  = "Compositor & session"
+bin      = "hypridle"
+required = true
+fedora   = "hypridle"
+debian   = "hypridle"
+arch     = "hypridle"
+
+[packages.hyprlock]
+desc     = "lock screen"
+section  = "Compositor & session"
+bin      = "hyprlock"
+required = false
+fedora   = "hyprlock"
+debian   = "hyprlock"
+arch     = "hyprlock"
+
+[packages.hyprpaper]
+desc    = "wallpaper fallback (grootshell draws the wallpaper day to day)"
+section = "Compositor & session"
+bin     = "hyprpaper"
+fedora  = "hyprpaper"
+debian  = "hyprpaper"
+arch    = "hyprpaper"
+
+[packages.uwsm]
+desc     = "session manager that wraps every autostart app"
+section  = "Compositor & session"
+bin      = "uwsm"
+required = true
+fedora   = "uwsm"
+debian   = "uwsm"
+arch     = "uwsm"
+
+[packages.hyprpolkitagent]
+desc      = "polkit agent"
+section   = "Compositor & session"
+bin       = ""
+fedora    = "hyprpolkitagent"
+debian    = "hyprpolkitagent"
+arch      = "hyprpolkitagent"
+note_arch = "AUR"
+
+[packages.quickshell]
+desc        = "Quickshell (runs grootshell: bar, notifications, wallpaper)"
+section     = "Bar / theming"
+bin         = "qs"
+required    = true
+fedora      = ""
+debian      = "quickshell"
+arch        = ""
+note_fedora = "COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell"
+note_arch   = "AUR: quickshell"
+
+[packages.matugen]
+desc     = "wallpaper -> colour palette"
+section  = "Bar / theming"
+bin      = "matugen"
+required = true
+fedora   = ""
+debian   = ""
+arch     = ""
+manual   = "cargo install matugen (needs Rust/cargo; Arch: AUR matugen)"
+
+[packages.kitty]
+desc     = "terminal"
+section  = "Terminal & tools"
+bin      = "kitty"
+required = true
+fedora   = "kitty"
+debian   = "kitty"
+arch     = "kitty"
+
+[packages.yazi]
+desc    = "terminal file manager"
+section = "Terminal & tools"
+bin     = "yazi"
+fedora  = "yazi"
+debian  = ""
+arch    = "yazi"
+manual  = "see https://yazi-rs.github.io/docs/installation"
+
+[packages.starship]
+desc    = "shell prompt"
+section = "Terminal & tools"
+bin     = "starship"
+fedora  = "starship"
+debian  = "starship"
+arch    = "starship"
+
+[packages.dolphin]
+desc    = "file manager (SUPER+E on the maintainer's host; set file_manager in hosts.toml)"
+section = "Terminal & tools"
+bin     = "dolphin"
+fedora  = "dolphin"
+debian  = "dolphin"
+arch    = "dolphin"
+
+[packages.rofi]
+desc    = "launcher, power menu, clipboard picker"
+section = "Terminal & tools"
+bin     = "rofi"
+fedora  = "rofi"
+debian  = "rofi"
+arch    = "rofi"
+
+[packages.cliphist]
+desc      = "clipboard history"
+section   = "Clipboard & screenshots"
+bin       = "cliphist"
+fedora    = "cliphist"
+debian    = "cliphist"
+arch      = "cliphist"
+note_arch = "AUR"
+
+[packages.wl-clipboard]
+desc     = "wl-copy / wl-paste"
+section  = "Clipboard & screenshots"
+bin      = "wl-copy"
+required = true
+fedora   = "wl-clipboard"
+debian   = "wl-clipboard"
+arch     = "wl-clipboard"
+
+[packages.grim]
+desc    = "screenshots"
+section = "Clipboard & screenshots"
+bin     = "grim"
+fedora  = "grim"
+debian  = "grim"
+arch    = "grim"
+
+[packages.slurp]
+desc    = "screen region picker"
+section = "Clipboard & screenshots"
+bin     = "slurp"
+fedora  = "slurp"
+debian  = "slurp"
+arch    = "slurp"
+
+[packages.jq]
+desc     = "JSON tool used by rice scripts"
+section  = "Clipboard & screenshots"
+bin      = "jq"
+required = true
+fedora   = "jq"
+debian   = "jq"
+arch     = "jq"
+
+[packages.libnotify]
+desc    = "notify-send"
+section = "Clipboard & screenshots"
+bin     = "notify-send"
+fedora  = "libnotify"
+debian  = "libnotify-bin"
+arch    = "libnotify"
+
+[packages.fzf]
+desc    = "fuzzy finder (clipboard fallback, yazi Z)"
+section = "Clipboard & screenshots"
+bin     = "fzf"
+fedora  = "fzf"
+debian  = "fzf"
+arch    = "fzf"
+
+[packages.zoxide]
+desc    = "smart cd (yazi z)"
+section = "Clipboard & screenshots"
+bin     = "zoxide"
+fedora  = "zoxide"
+debian  = "zoxide"
+arch    = "zoxide"
+
+[packages.xdg-user-dirs]
+desc    = "xdg-user-dir: screenshot and yt-x download folders"
+section = "Clipboard & screenshots"
+bin     = "xdg-user-dir"
+fedora  = "xdg-user-dirs"
+debian  = "xdg-user-dirs"
+arch    = "xdg-user-dirs"
+
+[packages.xdg-utils]
+desc    = "xdg-open / xdg-settings: default browser and file manager"
+section = "Clipboard & screenshots"
+bin     = "xdg-open"
+fedora  = "xdg-utils"
+debian  = "xdg-utils"
+arch    = "xdg-utils"
+
+[packages.xrandr]
+desc    = "only if primary_monitor is set for your host"
+section = "Clipboard & screenshots"
+bin     = "xrandr"
+fedora  = "xrandr"
+debian  = "x11-xserver-utils"
+arch    = "xorg-xrandr"
+
+[packages.playerctl]
+desc    = "media keys"
+section = "Media / audio"
+bin     = "playerctl"
+fedora  = "playerctl"
+debian  = "playerctl"
+arch    = "playerctl"
+
+[packages.wireplumber]
+desc    = "wpctl (volume keys); usually pulled in with a PipeWire desktop"
+section = "Media / audio"
+bin     = "wpctl"
+fedora  = "wireplumber"
+debian  = "wireplumber"
+arch    = "wireplumber"
+
+[packages.nm-applet]
+desc    = "NetworkManager tray applet"
+section = "System tray / hardware"
+bin     = "nm-applet"
+fedora  = "network-manager-applet"
+debian  = "network-manager-gnome"
+arch    = "network-manager-applet"
+
+[packages.blueman]
+desc    = "Bluetooth manager"
+section = "System tray / hardware"
+bin     = "blueman-applet"
+fedora  = "blueman"
+debian  = "blueman"
+arch    = "blueman"
+
+[packages.kdeconnect]
+desc    = "KDE Connect (only if your host autostarts it)"
+section = "System tray / hardware"
+bin     = "kdeconnect-indicator"
+fedora  = "kdeconnectd"
+debian  = "kdeconnect"
+arch    = "kdeconnect"
+
+[packages.gum]
+desc    = "nicer prompts in `rice onboard` (plain prompts without it)"
+section = "Optional"
+bin     = "gum"
+fedora  = "gum"
+debian  = ""
+arch    = "gum"
+manual  = "charm apt repo: https://github.com/charmbracelet/gum#installation"
+
+[packages.age]
+desc    = "secrets (profile=personal only)"
+section = "Optional"
+bin     = "age"
+fedora  = "age"
+debian  = "age"
+arch    = "age"

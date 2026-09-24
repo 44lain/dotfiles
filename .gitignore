@@ -55,6 +55,7 @@
 
 # --- per-host machine data ------------------------------------------------
 !/.chezmoidata/hosts.toml
+!/.chezmoidata/packages.toml
 
 # --- kitty ---------------------------------------------------------------
 # The baseline only. colors-grootshell.conf is the matugen palette, generated
