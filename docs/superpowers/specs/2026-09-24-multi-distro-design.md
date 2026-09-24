@@ -19,6 +19,12 @@ Success looks like:
 3. The config runs on the oldest Hyprland the Debian family can actually get
    (0.55), or fails with a clear message when it cannot.
 4. Nothing already working on Fedora changes.
+5. **Non-negotiable (maintainer, 2026-09-24): it must work for other people, not
+   only on the maintainer's machine.** A stranger on any Debian-family distro
+   (Debian, Ubuntu, Mint, Kali, Parrot, Pop!_OS, Raspberry Pi OS, ...) gets from
+   `chezmoi init` to a working rice by following the README alone. Nothing in
+   code or docs may hard-code the maintainer's host, a distro codename
+   (`trixie`, `echo`) or a repo name.
 
 What the maintainer said, versus what is assumed:
 
@@ -38,11 +44,15 @@ What the maintainer said, versus what is assumed:
   `CONFIG_EDITOR="/usr/bin/nano"` in the yt-x template.
 - Debian: Hyprland is **0.56.2 in sid/forky** and **0.55.2 in trixie-backports**;
   Quickshell 0.3.0 is in trixie-backports and sid; hyprlock is in trixie-backports.
-- Parrot 7 is Debian 13 based but uses **its own repos** (`echo`,
-  `echo-backports`). Whether they carry Hyprland is **unverified**; adding
-  Debian's `trixie-backports` to a Parrot is mixing repos and can break it.
-- `matugen` is not packaged for Debian; `uwsm`, `cliphist` and
-  `hyprpolkitagent` availability on trixie is **unverified**.
+- Parrot 7.3 (`ID=parrot`, `ID_LIKE=debian`, `VERSION_CODENAME=echo`) is Debian
+  13 based and uses **its own repos** (`echo`, `echo-backports`). **Verified on
+  the notebook (`apt-cache policy`):** `echo-backports` (priority 599) carries
+  hyprland 0.55.2, quickshell 0.3.0, uwsm 0.26.7 and hyprpolkitagent 0.1.3;
+  `echo` (priority 600) carries cliphist 0.5.0 and hyprland **0.52.2**. Because
+  backports has the lower priority, a plain `apt install hyprland` installs the
+  too-old 0.52.2; the install must use `-t echo-backports`. No repo mixing is
+  needed on Parrot.
+- `matugen` is not packaged for Debian/Parrot (needs `cargo`).
 - `hyprland.lua` was written and tested on **0.56.2**. Whether every API it
   calls exists in 0.55 is **unknown**.
 
@@ -60,7 +70,7 @@ required = true
 fedora   = "hyprland"
 debian   = "hyprland"
 arch     = "hyprland"
-note_debian = "Debian 13: sudo apt install -t trixie-backports hyprland (0.55+)"
+note_debian = "needs backports: sudo apt install -t <codename>-backports hyprland (0.55+)"
 
 [packages.matugen]
 desc     = "wallpaper -> colour palette"
@@ -83,14 +93,25 @@ manual   = "cargo install matugen (Fedora/Debian); AUR matugen (Arch)"
   each `bin` with `command -v`, and for the missing ones prints one command:
   `sudo dnf install …`, `sudo apt install …`, or `sudo pacman -S …`, followed
   by the `note_<family>` and `manual` lines that apply.
-- Missing **required** dependency → `FAIL` (exit 1). Missing optional → `WARN`.
-- Unknown family → list the missing binaries only, no command.
-- Read-only. No `sudo`, no network.
+- **The apt suite comes from apt's own data, never from a codename table.** For a
+  missing package on the debian family, doctor asks the local apt cache
+  (`apt-cache madison`, `apt-cache policy`: read-only, no network, no root) for
+  the newest version any configured source offers. If that is not the default
+  candidate (Debian/Parrot backports, where the default is 0.52), it prints
+  `sudo apt install -t <suite> <pkg>` using the suite apt itself reported.
+  If the newest version is below the entry's `min_version`, or apt knows no
+  such package, doctor says so plainly (with "run `sudo apt update` first") and
+  points at `docs/dependencies.md` instead of printing a command that fails.
+  This is what makes Debian, Ubuntu, Mint, Kali, Parrot and Pop!_OS behave
+  correctly without listing them.
+- Read-only. No `sudo`, no network. `RICE_OS_RELEASE` overrides the
+  `os-release` path (test hook).
 
 ### 3. Hyprland version gate
 
 - `rice-doctor` reads `Hyprland --version`; below **0.55** → `FAIL` with a
-  message pointing at `docs/dependencies.md`.
+  message pointing at `docs/dependencies.md`. This is a real scenario on
+  Parrot/Debian: an `apt install hyprland` without `-t` yields 0.52.2.
 - Implementation task: compare every `hl.*` call in `hyprland.lua` against the
   0.55 Lua API documentation. Anything 0.56-only is adapted **without**
   version branches (choose the form both versions accept). If that is not
@@ -127,6 +148,14 @@ without the notebook.
   that image is available — resolve every package name in `packages.toml`
   (`apt-cache policy` / `pacman -Si` / `dnf repoquery`). A name that does not
   resolve fails the check. AUR packages are skipped and listed as such.
+- **Matrix.** Hard-fail images: `debian:trixie` (+ backports), `parrotsec/core`,
+  `fedora:43`, `archlinux`. Report-only images (informational, they may
+  legitimately lack Hyprland): `ubuntu:24.04`, `kalilinux/kali-rolling`.
+  An image that cannot be pulled is skipped, not failed.
+- **Stranger walk-through in containers** (`debian:trixie`, `ubuntu:24.04`,
+  `fedora:43`): install chezmoi the documented way, apply as `profile=guest`,
+  run `rice doctor`. Every template must render, and doctor must print the
+  correct install command for that family.
 - **Distro detection** and the **install-command output** are unit-tested with
   fake `os-release` files, in the existing fake-environment style of
   `test/rice-doctor.sh`.
@@ -157,9 +186,9 @@ without the notebook.
 
 1. **0.55 compatibility is unknown** until the API audit and the notebook run.
    Risk: something essential is 0.56-only.
-2. **Parrot's Hyprland source is unverified.** If its repos do not carry it,
-   Parrot users need either Debian backports (repo mixing) or a source build;
-   the docs will say so plainly rather than promise a path.
+2. ~~Parrot's Hyprland source unverified~~ **Resolved 2026-09-24:** Parrot
+   `echo-backports` carries 0.55.2 (see Findings). Residual: apt prefers 0.52.2
+   unless `-t` is used.
 3. `matugen` has no Debian package; users need `cargo`.
 4. The `parrotsec/core` image may not resolve the same package set as a full
    Parrot install; a pass there is evidence, not proof.
