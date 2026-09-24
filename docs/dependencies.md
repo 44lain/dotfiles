@@ -1,13 +1,14 @@
 # Dependencies
 
 Everything this rice assumes is already on the system, by distro. `chezmoi`
-and `git` are the only things `chezmoi init --apply` itself needs — this
-list is for the *result* of applying it to actually work.
+and `git` are the only things applying this repo itself needs — this list is
+for the *result* of applying it to actually work.
 
-Honesty check: this was built and is only really verified on **Fedora**
-(the `desktop` host). Debian/Ubuntu and Arch columns are best-effort —
-package names that should be right based on each distro's usual naming,
-not something tested here. If one's wrong, it's a docs bug, not a hidden
+Support: **Fedora** with Hyprland 0.56+ is what this was built on and is the
+only verified column. **Arch** is planned (the package names below are listed
+but untested — adding it officially means testing them on a real install).
+Debian/Ubuntu is not supported (no Hyprland in stable); that column is a
+best-effort guess. If a name is wrong, it's a docs bug, not a hidden
 requirement — open an issue or just fix it and send a PR.
 
 ## Compositor & session
@@ -60,6 +61,9 @@ turn need `zoxide` and `fzf` (see the clipboard/screenshot table below,
 | libnotify (`notify-send`) | `libnotify` | `libnotify-bin` | `libnotify` |
 | rofi + fzf (clipboard picker fallback, also yazi's `Z`) | `rofi fzf` | `rofi fzf` | `rofi fzf` |
 | zoxide (yazi's `z`) | `zoxide` | `zoxide` | `zoxide` |
+| xdg-user-dirs (`xdg-user-dir`: screenshot and yt-x download folders) | `xdg-user-dirs` | `xdg-user-dirs` | `xdg-user-dirs` |
+| xdg-utils (`xdg-open`, `xdg-settings`: default file manager / browser) | `xdg-utils` | `xdg-utils` | `xdg-utils` |
+| xrandr (only if `primary_monitor` is set for your host) | `xrandr` | `x11-xserver-utils` | `xorg-xrandr` |
 
 ## Media / audio
 
@@ -88,12 +92,20 @@ tool — kept as a rule from before the grim/slurp switch, not actually
 used to take screenshots under Hyprland), and `xdg-desktop-portal-gtk`
 (GTK file-picker portal, needed for browser file dialogs under Wayland).
 
-## Browser (`SUPER+B`)
+## Browser (`SUPER+B`) and file manager (`SUPER+E`)
 
-`hyprland.lua` execs `zen` — [Zen Browser](https://zen-browser.app/). Not
-in any distro's official repos on any of the three; install the AppImage,
-the Flatpak (`app.zen_browser.zen`), or the AUR package
-(`zen-browser-bin`).
+Both are per-host settings in `.chezmoidata/hosts.toml` (`browser`,
+`file_manager`). Left unset they fall back to your system's default browser
+and `xdg-open $HOME` (so any file manager registered for directories). The
+maintainer's own host sets `browser = "zen"` — [Zen Browser](https://zen-browser.app/),
+which no distro packages officially (AppImage, the Flatpak `app.zen_browser.zen`,
+or the AUR `zen-browser-bin`). You don't need it.
+
+## Power menu (`SUPER+O`, then `E`)
+
+`~/.local/bin/powermenu` (shipped in this repo) is a five-entry rofi menu
+(lock / logout / suspend / reboot / poweroff) — needs `rofi`, already listed
+above.
 
 ## yt-x (terminal YouTube browser) — optional
 
@@ -122,6 +134,9 @@ than failing silently if either is missing.
 | age (secrets, `profile=personal` only) | `age` | `age` | `age` |
 
 ## Dev tooling for this repo (not applied to your `$HOME`)
+
+`make test` needs `chezmoi` (already required) and, optionally, `luajit`
+(Fedora: `sudo dnf install luajit`) to syntax-check the rendered Lua.
 
 `make check` needs `shellcheck` and `gitleaks` — Fedora: `sudo dnf install
 shellcheck` (`gitleaks` isn't in Fedora's repos, grab a release binary

@@ -91,8 +91,10 @@ front — the incremental waves still call `make unstow` / `make <host>` while
 Stow and chezmoi coexist. Once the last package is migrated the Stow targets
 have no chezmoi equivalent worth keeping; README then points at `rice` directly.
 
-**`_legacy_ini_backup/`** (the pre-Lua Hyprland INI) migrates as-is under
-`readonly_`, still the Hyprland rollback point.
+**`_legacy_ini_backup/`** (the pre-Lua Hyprland INI) was dropped from the repo
+(2026-09-23): chezmoi's `readonly_` prefix creates the directory read-only, so
+a first apply on a fresh machine died with "permission denied" on the nested
+`conf.d/`. Nobody but the author had any use for it.
 
 ---
 
@@ -374,14 +376,13 @@ were still being migrated one at a time; that period is over (see status
 below) and the Makefile's Stow targets are gone.
 
 **Whole-migration rollback:** each wave is an isolated commit;
-`_legacy_ini_backup/` stays the Hyprland return point; `git revert` the
-relevant commits to go back to any prior state.
+`git revert` the relevant commits to go back to any prior state.
 
 ### status
 
 | Wave | Packages | State |
 | ---- | -------- | ----- |
-| 1 | `shell` `starship` `git` `environment.d` | **done** (`track-E-wave-1.md`) — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig`; verifier `test/wave-1.sh` |
+| 1 | `shell` `starship` `git` `environment.d` | **done** — `dot_bashrc.d/`, `dot_config/`, `dot_gitconfig` |
 | 2 | `kitty` `yazi` `yt-x` `bin` | **done** (2026-09-12, commits `d3edf4b..0236f90`) — `dot_config/{kitty,yazi,yt-x}/`; `bin` split into `bin/executable_cs2-mode.sh` (→ `~/bin`) and `dot_local/bin/executable_accela` (→ `~/.local/bin`), first packages to use the `executable_` prefix. All four had empty `chezmoi diff` targets already (no `make unstow` step needed, same as wave 1). No standalone wave-2 plan doc — mechanical, low-risk, done directly against this spec. |
 | 3 | `hypr` (partial) | **hypr done** (2026-09-12, commit `e7864ce`). |
 
@@ -397,10 +398,9 @@ there is nothing left for Stow to do, so its Makefile targets
 (`desktop`/`pentest`/`dry-run`/`unstow`) were retired at the same time
 instead of waiting for a wave-4 close-out that no longer has a target.
 
-The `rice` command is built (`docs/track-E-rice.md`): `rice apply` (guarded
+The `rice` command is built: `rice apply` (guarded
 apply — preview, backup, confirm, prune), `rice diff`, `rice rollback`,
-`rice uninstall`, `rice onboard` (autodetect wizard, `docs/track-E-rice.md`
-Task 5), `rice doctor` (stub → B1). From wave 2 on, use
+`rice uninstall`, `rice onboard` (autodetect wizard), `rice doctor` (health check, B1). From wave 2 on, use
 `rice apply`, not bare `chezmoi apply`.
 
 Wave 1 notes: on the `desktop` host these four packages were already
