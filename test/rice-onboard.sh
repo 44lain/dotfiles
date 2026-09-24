@@ -77,9 +77,11 @@ cp "$sandbox/bin/rice-onboard" "$scriptbin/rice-onboard"
 chmod +x "$scriptbin/rice-onboard"
 ln -s "$(command -v bash)" "$emptybin/bash"
 ln -s "$(command -v dirname)" "$emptybin/dirname"
-out=$(PATH="$emptybin" HOME="$sandbox/home" "$scriptbin/rice-onboard" 2>&1); rc=$?
+printf 'ID=ubuntu\nID_LIKE=debian\n' > "$sandbox/osr-ubuntu"
+out=$(RICE_OS_RELEASE="$sandbox/osr-ubuntu" PATH="$emptybin" HOME="$sandbox/home" "$scriptbin/rice-onboard" 2>&1); rc=$?
 rm -rf "${emptybin:?}" "${scriptbin:?}"
-if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q chezmoi && printf '%s' "$out" | grep -q git; then
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q chezmoi && printf '%s' "$out" | grep -q git \
+	&& printf '%s' "$out" | grep -q 'sudo apt install' && printf '%s' "$out" | grep -q 'get.chezmoi.io'; then
 	pass "onboard: missing chezmoi+git -> exit 1, names both"
 else
 	flunk "onboard: missing deps (rc=$rc out=<$out>)"
@@ -145,6 +147,47 @@ if [ $rc -eq 0 ] \
 	pass "onboard: existing host -> no new block, no detection prompts consumed"
 else
 	flunk "onboard: existing host (rc=$rc out=<$out>)"
+fi
+
+# --- O5. Debian-style ~/.bashrc without the loader: prompt, append, idempotent -
+hook_home() {
+	rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
+	printf '# stock debian bashrc\nalias ll="ls -l"' > "$sandbox/home/.bashrc"   # no trailing newline on purpose
+	: > "$sandbox/status"
+}
+hook_home
+answers=$'Test User\nx@example.com\n\npersonal\npentest\ny\n'
+out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
+if [ $rc -eq 0 ] && grep -q '\.bashrc\.d' "$sandbox/home/.bashrc" \
+	&& grep -q '^alias ll="ls -l"$' "$sandbox/home/.bashrc" \
+	&& bash -n "$sandbox/home/.bashrc"; then
+	pass "onboard O5: bashrc loader appended after y, file still valid"
+else
+	flunk "onboard O5 (rc=$rc out=<$out>)"
+fi
+
+# --- O6. answer n -> ~/.bashrc untouched ----------------------------------------
+hook_home
+before=$(cat "$sandbox/home/.bashrc")
+answers=$'Test User\nx@example.com\n\npersonal\npentest\nn\n'
+out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
+if [ $rc -eq 0 ] && [ "$(cat "$sandbox/home/.bashrc")" = "$before" ]; then
+	pass "onboard O6: n leaves ~/.bashrc untouched"
+else
+	flunk "onboard O6 (rc=$rc out=<$out>)"
+fi
+
+# --- O7. loader already present -> no prompt, no duplicate ------------------------
+hook_home
+# shellcheck disable=SC2016  # literal loader text
+printf '\nfor rc in ~/.bashrc.d/*.sh; do . "$rc"; done\n' >> "$sandbox/home/.bashrc"
+before=$(cat "$sandbox/home/.bashrc")
+answers=$'Test User\nx@example.com\n\npersonal\npentest\n'
+out=$(printf '%s' "$answers" | run onboard 2>&1); rc=$?
+if [ $rc -eq 0 ] && [ "$(cat "$sandbox/home/.bashrc")" = "$before" ]; then
+	pass "onboard O7: existing loader -> not asked, not duplicated"
+else
+	flunk "onboard O7 (rc=$rc out=<$out>)"
 fi
 
 exit $fail

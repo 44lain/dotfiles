@@ -41,4 +41,22 @@ else
 	flunk "packages.toml schema: $out"
 fi
 
+# --- 2. os_family is duplicated in doctor and onboard: keep them identical ----
+grab() { sed -n '/^os_family() {/,/^}/p' "$1"; }
+a=$(grab "$repo/dot_local/bin/executable_rice-doctor")
+b=$(grab "$repo/dot_local/bin/executable_rice-onboard")
+if [ -n "$a" ] && [ "$a" = "$b" ]; then
+	pass "os_family identical in rice-doctor and rice-onboard"
+else
+	flunk "os_family differs (or is missing) between rice-doctor and rice-onboard"
+fi
+
+# --- 3. nothing outside hosts.toml hard-codes a /usr/bin path -----------------
+if grep -rn '/usr/bin/' "$repo/dot_config" "$repo/dot_bashrc.d" "$repo/dot_local" \
+	| grep -v ':#!/usr/bin/env' | grep -q .; then
+	flunk "hard-coded /usr/bin path in shipped config: $(grep -rn '/usr/bin/' "$repo/dot_config" "$repo/dot_bashrc.d" "$repo/dot_local" | grep -v ':#!/usr/bin/env' | head -3)"
+else
+	pass "no hard-coded /usr/bin paths in shipped config"
+fi
+
 exit $fail

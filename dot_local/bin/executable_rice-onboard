@@ -8,6 +8,7 @@
 #   6. host      pick existing, or detect a new one (monitors/kb/gpu/scale)
 #   7. write     personal -> repo .chezmoidata/hosts.toml (commit it);
 #                guest    -> local ~/.config/chezmoi/chezmoi.toml only
+#   7b. bashrc  offer the ~/.bashrc.d loader (Debian-family)
 #   8. apply     hand off to `rice apply`
 # No gum on PATH -> falls back to plain `read`, same questions.
 set -euo pipefail
@@ -17,6 +18,36 @@ PATH=$self_dir:$PATH
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# os_family — keep identical to the copy in executable_rice-doctor
+# (test/packages.sh checks it). RICE_OS_RELEASE is a test hook.
+os_family() {
+	local f=${RICE_OS_RELEASE:-/etc/os-release} id="" like="" k v w
+	[ -r "$f" ] || { echo unknown; return; }
+	while IFS='=' read -r k v; do
+		v=${v//\"/}
+		case $k in ID) id=$v ;; ID_LIKE) like=$v ;; esac
+	done < "$f"
+	for w in $id $like; do
+		case $w in
+			fedora|rhel) echo fedora; return ;;
+			debian|ubuntu) echo debian; return ;;
+			arch) echo arch; return ;;
+		esac
+	done
+	echo unknown
+}
+
+# Onboarding's own tools (chezmoi git jq age) are named here rather than read
+# from .chezmoidata/packages.toml: this runs before chezmoi and the repo exist.
+install_hint() {  # install_hint <tool>... -> a line the user can paste
+	case $(os_family) in
+		fedora) echo "  sudo dnf install $*" ;;
+		debian) echo "  sudo apt install $*" ;;
+		arch)   echo "  sudo pacman -S $*" ;;
+		*)      echo "  install with your package manager: $*" ;;
+	esac
+}
+
 # --- 1. deps (check early, before any other operations) -------------------
 missing=()
 have chezmoi || missing+=(chezmoi)
@@ -24,13 +55,16 @@ have git || missing+=(git)
 have jq || missing+=(jq)
 if [ ${#missing[@]} -gt 0 ]; then
 	echo "rice-onboard: missing required tool(s): ${missing[*]}" >&2
-	echo "  sudo dnf install ${missing[*]}   # Fedora" >&2
-	echo "  sudo apt install ${missing[*]}   # Debian/Ubuntu" >&2
+	install_hint "${missing[*]}" >&2
+	# shellcheck disable=SC2016  # the $(curl ...) is literal text for the user
+	case " ${missing[*]} " in
+		*" chezmoi "*) echo '  not packaged for your release? sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin' >&2 ;;
+	esac
 	exit 1
 fi
 if ! have age; then
 	echo "rice-onboard: note — 'age' not found; secrets (profile=personal) won't work until it's installed" >&2
-	echo "  sudo dnf install age   # Fedora / sudo apt install age   # Debian/Ubuntu" >&2
+	install_hint age >&2
 fi
 
 ask() {  # ask <prompt> [default] -> prints the answer (default if blank)
@@ -220,6 +254,29 @@ fi
 
 sed -i "s/^    profile = .*/    profile = \"$profile\"/" "$chezmoi_config"
 sed -i "s/^    host    = .*/    host    = \"$host_name\"/" "$chezmoi_config"
+
+# --- 7b. ~/.bashrc.d loader ---------------------------------------------------
+# Fedora's stock ~/.bashrc sources ~/.bashrc.d/*; Debian-family ones do not, and
+# this rice's PATH and aliases live there. Only asked when ~/.bashrc exists and
+# lacks the loader (idempotent).
+if [ -f "$HOME/.bashrc" ] && ! grep -q '\.bashrc\.d' "$HOME/.bashrc"; then
+	# shellcheck disable=SC2088  # literal ~ in a message, not a path
+	if confirm "~/.bashrc does not load ~/.bashrc.d (the rice's PATH and aliases live there). Append the loader?"; then
+		cat >> "$HOME/.bashrc" <<'HOOK'
+
+# Load ~/.bashrc.d fragments (managed by dotfiles)
+if [ -d ~/.bashrc.d ]; then
+    for rc in ~/.bashrc.d/*.sh; do
+        [ -f "$rc" ] && . "$rc"
+    done
+    unset rc
+fi
+HOOK
+		echo "appended the ~/.bashrc.d loader to ~/.bashrc"
+	else
+		echo "skipped — later: make bashrc-hook (from the repo)"
+	fi
+fi
 
 # --- 8. apply ----------------------------------------------------------------
 echo "onboarding done — profile=$profile host=$host_name"
