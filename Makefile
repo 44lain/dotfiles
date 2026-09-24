@@ -3,21 +3,30 @@ SHELL := /bin/bash
 # Stow retired 2026-09-12: every package that was still Stow-managed either
 # migrated to chezmoi (docs/track-E.md) or was dropped from the repo (kde,
 # cursor, konsole — too personal/idiosyncratic for a public "clone and use"
-# rice). Install/apply now goes through `chezmoi init --apply` + `rice apply`
-# (README), not `make`.
+# rice). Install/apply goes through `chezmoi init` / `chezmoi diff` /
+# `chezmoi apply` + `rice apply` (README), not `make`.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check bashrc-hook cursor-extensions
+.PHONY: help check test bashrc-hook cursor-extensions
 
 help:
 	@echo "Targets:"
 	@echo "  make bashrc-hook        add the ~/.bashrc.d loop (Debian/Parrot only)"
 	@echo "  make cursor-extensions  install the extensions listed in docs/"
 	@echo "  make check              shellcheck + gitleaks"
+	@echo "  make test               run test/*.sh (needs chezmoi; luajit optional)"
 	@echo ""
-	@echo "To apply the dotfiles themselves: chezmoi init --apply <this repo>,"
+	@echo "To apply the dotfiles themselves: chezmoi init, chezmoi diff, chezmoi apply,"
 	@echo "then 'rice apply' for any later change. See README.md."
+
+test:
+	@fail=0; \
+	for t in test/*.sh; do \
+		echo "==> $$t"; \
+		bash "$$t" </dev/null || fail=1; \
+	done; \
+	exit $$fail
 
 # Fedora's stock ~/.bashrc sources ~/.bashrc.d/*; Debian's and Parrot's do not.
 # Idempotent: appends the loop only when it is not already present.

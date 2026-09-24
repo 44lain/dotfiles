@@ -26,5 +26,14 @@ jobs:
             | tar -xz -C /usr/local/bin gitleaks
           gitleaks version
 
+      - name: Install chezmoi and luajit (tests render the templates)
+        run: |
+          sudo apt-get update && sudo apt-get install -y luajit jq
+          sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
+          chezmoi --version
+
       - name: make check
         run: make check
+
+      - name: make test
+        run: make test

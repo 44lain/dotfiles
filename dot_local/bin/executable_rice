@@ -17,8 +17,8 @@ usage: rice <command>
   diff             chezmoi diff (read-only preview)
   rollback [<ts>]  undo the last apply only (newest backup, or a timestamp)
   uninstall        undo every apply ever run here, back to before rice
-  onboard          first-machine setup wizard (track E5)
-  doctor           health check (track B1)
+  onboard          first-machine setup wizard
+  doctor           health check
 EOF
 }
 
@@ -38,7 +38,7 @@ case $cmd in
 		if command -v rice-onboard >/dev/null 2>&1; then
 			exec rice-onboard "$@"
 		fi
-		echo "rice onboard: not built yet (track E5 / wave 3)" >&2
+		echo "rice onboard: rice-onboard not found on PATH (is ~/.local/bin on PATH? open a new terminal)" >&2
 		exit 1 ;;
 	doctor)
 		exec rice-doctor "$@" ;;

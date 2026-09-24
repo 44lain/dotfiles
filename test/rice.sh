@@ -3,7 +3,7 @@
 # fake $HOME on PATH — never touches the real environment.
 set -u
 
-repo="/home/user/Documentos/Code/dotfiles"
+repo="$(cd "$(dirname "$0")/.." && pwd)"
 src="$repo/dot_local/bin"
 fail=0
 pass()  { printf '  ok   %s\n' "$1"; }
@@ -42,9 +42,15 @@ echo "FAKE DOCTOR"
 FAKE
 chmod +x "$sandbox/bin/rice-doctor"
 
+cat > "$sandbox/bin/rice-onboard" <<'FAKE'
+#!/usr/bin/env bash
+echo "FAKE ONBOARD"
+FAKE
+chmod +x "$sandbox/bin/rice-onboard"
+
 mkdir -p "$sandbox/src"
 git -C "$sandbox/src" init -q
-git -C "$sandbox/src" commit -q --allow-empty -m seed
+git -C "$sandbox/src" -c user.name=test -c user.email=test@example.com commit -q --allow-empty -m seed
 
 export SB="$sandbox"
 export HOME="$sandbox/home"
@@ -74,7 +80,7 @@ expect 0 "uninstall"       "rice --help lists uninstall"           --help
 expect 2 "unknown command" "unknown command -> exit 2"            bogus
 expect 0 "^FAKE DOCTOR$"   "rice doctor -> delegates to rice-doctor" doctor
 expect 0 "^FAKE DIFF$"     "rice diff -> chezmoi diff passthrough" diff
-expect 1 "not built yet"   "rice onboard -> not-built, exit 1"    onboard
+expect 0 "^FAKE ONBOARD$" "rice onboard -> delegates to rice-onboard" onboard
 
 # --- rice-apply ----------------------------------------------------------
 # nothing pending
