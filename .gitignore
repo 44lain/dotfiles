@@ -23,6 +23,7 @@
 
 # --- docs ------------------------------------------------------------------
 !/docs/*.md
+!/docs/dependencies.md.tmpl
 !/docs/superpowers/specs/*.md
 !/docs/cursor-extensions.txt
 

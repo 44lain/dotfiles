@@ -1,3 +1,20 @@
+{{- define "cell" -}}
+{{- $p := index . 0 -}}{{- $fam := index . 1 -}}
+{{- $name := get $p $fam -}}
+{{- $note := get $p (printf "note_%s" $fam) -}}
+{{- $manual := get $p "manual" -}}
+{{- if $name -}}`{{ $name }}`{{- else if $manual -}}{{ $manual }}{{- else if not $note -}}—{{- end -}}
+{{- if and $note (or $name $manual) }} — {{ end -}}{{ $note -}}
+{{- end -}}
+{{- define "deps-table" -}}
+| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
+| ---- | -------------- | --------------------- | --------------- |
+{{- range $key, $p := $.root.packages -}}
+{{- if eq (get $p "section") $.section }}
+| {{ get $p "desc" }} | {{ template "cell" (list $p "fedora") }} | {{ template "cell" (list $p "debian") }} | {{ template "cell" (list $p "arch") }} |
+{{- end -}}
+{{- end -}}
+{{- end -}}
 # Dependencies
 
 Everything this rice assumes is already on the system, by distro. `chezmoi`
@@ -32,14 +49,7 @@ Debian-family notes:
 
 ## Compositor & session
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| idle daemon | `hypridle` | `hypridle` | `hypridle` |
-| compositor | `hyprland` — stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist) | `hyprland` — on Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot and some other derivatives already have backports enabled, so the printed command works as-is there | `hyprland` |
-| lock screen | `hyprlock` | `hyprlock` | `hyprlock` |
-| wallpaper fallback (grootshell draws the wallpaper day to day) | `hyprpaper` | `hyprpaper` | `hyprpaper` |
-| polkit agent | `hyprpolkitagent` | `hyprpolkitagent` | `hyprpolkitagent` — AUR |
-| session manager that wraps every autostart app | `uwsm` | `uwsm` | `uwsm` |
+{{ template "deps-table" (dict "root" . "section" "Compositor & session") }}
 
 ## Bar / theming (grootshell — not in this repo)
 
@@ -49,20 +59,11 @@ Debian-family notes:
 for why). Without it there's no bar, no notifications, no wallpaper —
 Hyprland itself still starts fine.
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| wallpaper -> colour palette | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) |
-| Quickshell (runs grootshell: bar, notifications, wallpaper) | COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell | `quickshell` | AUR: quickshell |
+{{ template "deps-table" (dict "root" . "section" "Bar / theming") }}
 
 ## Terminal & tools
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| file manager (SUPER+E on the maintainer's host; set file_manager in hosts.toml) | `dolphin` | `dolphin` | `dolphin` |
-| terminal | `kitty` | `kitty` | `kitty` |
-| launcher, power menu, clipboard picker | `rofi` | `rofi` | `rofi` |
-| shell prompt | `starship` — not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/) | `starship` | `starship` |
-| terminal file manager | `yazi` — not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/) | see https://yazi-rs.github.io/docs/installation | `yazi` |
+{{ template "deps-table" (dict "root" . "section" "Terminal & tools") }}
 
 Yazi's `z`/`Z` keymap needs two of its own plugins on top of the package
 itself: `ya pack -a yazi-rs/plugins:zoxide yazi-rs/plugins:fzf` — which in
@@ -71,34 +72,15 @@ turn need `zoxide` and `fzf` (see the clipboard/screenshot table below,
 
 ## Clipboard & screenshots
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| clipboard history | `cliphist` | `cliphist` | `cliphist` — AUR |
-| fuzzy finder (clipboard fallback, yazi Z) | `fzf` | `fzf` | `fzf` |
-| screenshots | `grim` | `grim` | `grim` |
-| JSON tool used by rice scripts | `jq` | `jq` | `jq` |
-| notify-send | `libnotify` | `libnotify-bin` | `libnotify` |
-| screen region picker | `slurp` | `slurp` | `slurp` |
-| wl-copy / wl-paste | `wl-clipboard` | `wl-clipboard` | `wl-clipboard` |
-| xdg-user-dir: screenshot and yt-x download folders | `xdg-user-dirs` | `xdg-user-dirs` | `xdg-user-dirs` |
-| xdg-open / xdg-settings: default browser and file manager | `xdg-utils` | `xdg-utils` | `xdg-utils` |
-| only if primary_monitor is set for your host | `xrandr` | `x11-xserver-utils` | `xorg-xrandr` |
-| smart cd (yazi z) | `zoxide` | `zoxide` | `zoxide` |
+{{ template "deps-table" (dict "root" . "section" "Clipboard & screenshots") }}
 
 ## Media / audio
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| media keys | `playerctl` | `playerctl` | `playerctl` |
-| wpctl (volume keys); usually pulled in with a PipeWire desktop | `wireplumber` | `wireplumber` | `wireplumber` |
+{{ template "deps-table" (dict "root" . "section" "Media / audio") }}
 
 ## System tray / hardware
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| Bluetooth manager | `blueman` | `blueman` | `blueman` |
-| KDE Connect (only if your host autostarts it) | `kdeconnectd` | `kdeconnect` | `kdeconnect` |
-| NetworkManager tray applet | `network-manager-applet` | `network-manager-gnome` | `network-manager-applet` |
+{{ template "deps-table" (dict "root" . "section" "System tray / hardware") }}
 
 ## Window-rule targets (only if you actually use them — Hyprland doesn't need these to run)
 
@@ -148,10 +130,7 @@ plain `read` prompts without `gum`, and `age` is only needed for the
 checked by `rice onboard` itself, which prints the install line rather
 than failing silently if either is missing.
 
-| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
-| ---- | -------------- | --------------------- | --------------- |
-| secrets (profile=personal only) | `age` | `age` | `age` |
-| nicer prompts in `rice onboard` (plain prompts without it) | `gum` | charm apt repo: https://github.com/charmbracelet/gum#installation | `gum` |
+{{ template "deps-table" (dict "root" . "section" "Optional") }}
 
 ## Dev tooling for this repo (not applied to your `$HOME`)
 

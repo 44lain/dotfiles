@@ -8,7 +8,7 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check test distro-check bashrc-hook cursor-extensions
+.PHONY: help check test docs distro-check bashrc-hook cursor-extensions
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make cursor-extensions  install the extensions listed in docs/"
 	@echo "  make check              shellcheck + gitleaks"
 	@echo "  make test               run test/*.sh (needs chezmoi; luajit optional)"
+	@echo "  make docs               regenerate docs/dependencies.md from .chezmoidata/packages.toml"
 	@echo "  make distro-check       verify package names and a guest install in containers (docker, network)"
 	@echo ""
 	@echo "To apply the dotfiles themselves: chezmoi init, chezmoi diff, chezmoi apply,"
@@ -56,6 +57,10 @@ check:
 		gitleaks detect --source . --no-banner --redact || fail=1; \
 	else echo "gitleaks NOT installed — cannot verify before push" >&2; fail=1; fi; \
 	exit $$fail
+
+docs:
+	@chezmoi --source "$(CURDIR)" execute-template < docs/dependencies.md.tmpl > docs/dependencies.md
+	@echo "wrote docs/dependencies.md"
 
 distro-check:
 	@bash test/distro/packages.sh && bash test/distro/guest-install.sh

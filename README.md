@@ -1,6 +1,6 @@
 # dotfiles
 
-Hyprland rice for Fedora, managed with [chezmoi](https://www.chezmoi.io/).
+Hyprland rice for Fedora and Debian-family distros, managed with [chezmoi](https://www.chezmoi.io/).
 Meant to be cloned and actually used, not just looked at — pick your
 `profile`/`host` at apply time and it applies cleanly, or restore your own
 machine after a reinstall.
@@ -9,9 +9,15 @@ machine after a reinstall.
 
 | | |
 | --- | --- |
-| **Supported** | **Fedora** (built and tested on Fedora 43) running **Hyprland 0.56 or newer** — the config is `hyprland.lua`, and Lua config needs a recent Hyprland. |
+| **Supported** | **Fedora** (built and tested on Fedora 43) and **Debian-family distros** (Debian, Ubuntu, Linux Mint, Kali, Parrot, Pop!_OS, …) that can install **Hyprland 0.55 or newer** — the config is `hyprland.lua`, and Lua config needs a recent Hyprland. `rice doctor` tells you whether yours can and prints the install command. |
 | **Planned** | **Arch.** Nothing here is Arch-specific; the package names are already listed in [docs/dependencies.md](docs/dependencies.md) but have **not been tested**. Adding it means testing that list on a real install and dropping the "untested" warning. |
-| **Not supported** | Debian/Ubuntu (Hyprland is not in their stable repos), and any setup without Hyprland. The apt column in `docs/dependencies.md` is a best-effort guess. |
+| **Not supported** | Setups without Hyprland, and releases that cannot get Hyprland 0.55+ from their repos (e.g. Debian 12, Ubuntu 24.04 LTS) unless you build Hyprland yourself. |
+
+Fedora with Hyprland is the verified target. The Debian family is verified in
+containers only (package names and a first apply, `make distro-check`); a full
+desktop run is confirmed on: *(not yet — to be filled in after a real-hardware
+test)*. Stock Debian 13 needs its backports repository enabled to get a usable
+Hyprland; `rice doctor` prints the steps.
 
 This repo only manages config files. It does **not** install packages —
 Hyprland, kitty, yazi and the rest must already be on the system, see
@@ -28,15 +34,21 @@ GPL-3.0); the version used with this rice is kept as a fork at
 still starts, but there is no bar, no notification daemon and no wallpaper.
 
 ```bash
+# Fedora; other distros: see docs/dependencies.md
 sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell
-cargo install matugen        # wallpaper -> colour palette; needs Rust/cargo
+cargo install matugen        # wallpaper -> colour palette; needs Rust/cargo (on Debian family too)
 git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
 ```
 
 ## Apply
 
 ```bash
+# Fedora
 sudo dnf install chezmoi git
+# Debian / Ubuntu / Mint / Kali / Parrot / Pop!_OS …
+sudo apt install git curl && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+# Arch
+sudo pacman -S chezmoi git
 
 chezmoi init 44lain    # clones over HTTPS — no SSH key needed
 ```
@@ -76,6 +88,12 @@ rice onboard     # git name + email, optional wallpaper, host detection
 
 `rice` is on `PATH` once `dot_bashrc.d/10-path.sh` is sourced, so open a new
 terminal first (or `source ~/.bashrc`, or run `~/.local/bin/rice onboard`).
+On Debian-family distros the stock `~/.bashrc` does not load `~/.bashrc.d`;
+`rice onboard` offers to add the loader (or run `make bashrc-hook` yourself).
+
+Then, on any distro: run `rice doctor` and paste the `sudo … install` line it
+prints for the missing packages, and at your display manager (SDDM, GDM, …)
+pick the Hyprland session entry that goes through **uwsm** if it lists one.
 
 Your git name and email are **machine-local** (`~/.config/git/local`, never
 committed) — until `rice onboard` sets them, `git commit` will refuse to run.
@@ -96,7 +114,7 @@ skips the safety net below.
 | `rice rollback [<timestamp>]` | Undo the **last** `rice apply` only. |
 | `rice uninstall` | Undo **every** `rice apply` ever run here — back to before this repo touched anything. Leaves `chezmoi` itself installed. |
 | `rice onboard` | First-machine wizard: git name/email if unset, optional wallpaper, then profile/host — autodetects monitors/keyboard/GPU for a new host and adds it (to the repo if `personal`, local-only if `guest`), then hands off to `rice apply`. |
-| `rice doctor` | Health check: configs parse, services running, fonts present, theme files coherent. `FAIL` exits 1; `WARN` doesn't. |
+| `rice doctor` | Health check: configs parse, services running, fonts present, theme files coherent, dependencies (with the install command for your distro), Hyprland version. `FAIL` exits 1; `WARN` doesn't. |
 
 Every `rice apply` backs up what it's about to change to
 `~/.local/state/rice/backup/<timestamp>/` before touching anything, so
@@ -173,6 +191,8 @@ dotfiles/
 ```bash
 make check              # shellcheck + gitleaks
 make test               # test/*.sh — needs chezmoi; luajit optional
-make bashrc-hook        # non-Fedora only — hooks ~/.bashrc.d into ~/.bashrc
+make bashrc-hook        # `rice onboard` offers this; manual form (hooks ~/.bashrc.d into ~/.bashrc)
+make docs               # regenerate docs/dependencies.md from .chezmoidata/packages.toml
+make distro-check       # package names + guest install in containers (docker, network)
 make cursor-extensions  # installs the Cursor extensions in docs/cursor-extensions.txt
 ```
