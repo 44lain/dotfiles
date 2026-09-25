@@ -83,6 +83,13 @@ turn need `zoxide` and `fzf` (see the clipboard/screenshot table below,
 
 {{ template "deps-table" (dict "root" . "section" "System tray / hardware") }}
 
+## Fonts
+
+`rice doctor` FAILs when one of these is missing. Where a distro has no
+suitable package, the cell says how to install the font by hand.
+
+{{ template "deps-table" (dict "root" . "section" "Fonts") }}
+
 ## Window-rule targets (only if you actually use them — Hyprland doesn't need these to run)
 
 `hyprland.lua`'s window rules float/centre a few specific apps. None of

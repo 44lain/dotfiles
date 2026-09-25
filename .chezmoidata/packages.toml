@@ -23,7 +23,7 @@ min_version = "0.55"
 fedora      = "hyprland"
 debian      = "hyprland"
 arch        = "hyprland"
-note_debian = "on Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot and some other derivatives already have backports enabled, so the printed command works as-is there"
+note_debian = "Debian only (never add Debian repositories on Ubuntu, Linux Mint or Pop!_OS: it breaks the system; there you need a release that ships Hyprland 0.55+ or a source build). On Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot already has backports enabled, so the printed command works as-is there"
 note_fedora = "stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist)"
 
 [packages.hypridle]
@@ -68,7 +68,6 @@ bin       = ""
 fedora    = "hyprpolkitagent"
 debian    = "hyprpolkitagent"
 arch      = "hyprpolkitagent"
-note_arch = "AUR"
 
 [packages.quickshell]
 desc        = "Quickshell (runs grootshell: bar, notifications, wallpaper)"
@@ -77,9 +76,8 @@ bin         = "qs"
 required    = true
 fedora      = ""
 debian      = "quickshell"
-arch        = ""
+arch        = "quickshell"
 note_fedora = "COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell"
-note_arch   = "AUR: quickshell"
 
 [packages.matugen]
 desc     = "wallpaper -> colour palette"
@@ -88,8 +86,8 @@ bin      = "matugen"
 required = true
 fedora   = ""
 debian   = ""
-arch     = ""
-manual   = "cargo install matugen (needs Rust/cargo; Arch: AUR matugen)"
+arch     = "matugen"
+manual   = "cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first)"
 
 [packages.kitty]
 desc     = "terminal"
@@ -120,7 +118,7 @@ arch    = "starship"
 note_fedora = "not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/)"
 
 [packages.dolphin]
-desc    = "file manager (SUPER+E on the maintainer's host; set file_manager in hosts.toml)"
+desc    = "file manager (bound to SUPER+E by default; set file_manager in hosts.toml to use another)"
 section = "Terminal & tools"
 bin     = "dolphin"
 fedora  = "dolphin"
@@ -142,7 +140,6 @@ bin       = "cliphist"
 fedora    = "cliphist"
 debian    = "cliphist"
 arch      = "cliphist"
-note_arch = "AUR"
 
 [packages.wl-clipboard]
 desc     = "wl-copy / wl-paste"
@@ -282,3 +279,33 @@ bin     = "age"
 fedora  = "age"
 debian  = "age"
 arch    = "age"
+
+# --- fonts: doc-only (bin = ""), rice doctor FAILs when one is missing --------
+# Names were checked in the distro images; anything else is a manual install.
+
+[packages.font-material-symbols]
+desc    = "Material Symbols Rounded (icons in the bar)"
+section = "Fonts"
+bin     = ""
+fedora  = ""
+debian  = ""
+arch    = "ttf-material-symbols-variable"
+manual  = "download from https://fonts.google.com/icons, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f`"
+
+[packages.font-rubik]
+desc    = "Rubik (UI text)"
+section = "Fonts"
+bin     = ""
+fedora  = "google-rubik-fonts"
+debian  = ""
+arch    = ""
+manual  = "download from https://fonts.google.com/specimen/Rubik, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f`"
+
+[packages.font-caskaydia]
+desc    = "CaskaydiaCove Nerd Font Mono (terminal)"
+section = "Fonts"
+bin     = ""
+fedora  = ""
+debian  = ""
+arch    = "ttf-cascadia-code-nerd"
+manual  = "download CascadiaCode.zip from https://github.com/ryanoasis/nerd-fonts/releases, unzip into ~/.local/share/fonts, run `fc-cache -f` (Fedora's cascadia-code-nf-fonts uses a different family name, so it does not satisfy the check)"

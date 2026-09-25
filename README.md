@@ -46,7 +46,7 @@ git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
 # Fedora
 sudo dnf install chezmoi git
 # Debian / Ubuntu / Mint / Kali / Parrot / Pop!_OS …
-sudo apt install git curl && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+sudo apt install git curl jq && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"   # so the next command finds chezmoi in this shell
 # Arch
 sudo pacman -S chezmoi git
@@ -87,13 +87,19 @@ Then finish setting up — this is what makes the machine yours:
 rice onboard     # git name + email, optional wallpaper, host detection
 ```
 
-`rice` is on `PATH` once `dot_bashrc.d/10-path.sh` is sourced, so open a new
-terminal first (or `source ~/.bashrc`, or run `~/.local/bin/rice onboard`).
-On Debian-family distros the stock `~/.bashrc` does not load `~/.bashrc.d`;
-`rice onboard` offers to add the loader (or run `make bashrc-hook` yourself).
+`rice` is on `PATH` once `dot_bashrc.d/10-path.sh` is sourced. On Fedora,
+open a new terminal first (or `source ~/.bashrc`, or run
+`~/.local/bin/rice onboard`). On Debian-family distros the stock `~/.bashrc`
+does not load `~/.bashrc.d` yet, and a new terminal would lose the `PATH`
+line you exported above: stay in this shell and run `~/.local/bin/rice
+onboard`, which offers to add the loader (or run `make bashrc-hook`
+yourself).
 
 Then, on any distro: run `rice doctor` and paste the `sudo … install` line it
-prints for the missing packages, and at your display manager (SDDM, GDM, …)
+prints for the missing required packages (optional ones are printed on a
+separate line, install them only if you want them; `matugen` needs
+`cargo`, so on Debian-family: `sudo apt install cargo` first), and at your
+display manager (SDDM, GDM, …)
 pick the Hyprland session entry that goes through **uwsm** if it lists one.
 
 Your git name and email are **machine-local** (`~/.config/git/local`, never

@@ -13,7 +13,7 @@ if out=$(python3 - "$repo/.chezmoidata/packages.toml" <<'PY' 2>&1
 import sys, tomllib
 sections = {"Compositor & session", "Bar / theming", "Terminal & tools",
             "Clipboard & screenshots", "Media / audio",
-            "System tray / hardware", "Optional"}
+            "System tray / hardware", "Fonts", "Optional"}
 data = tomllib.load(open(sys.argv[1], "rb"))["packages"]
 errs = []
 for key, p in data.items():
@@ -57,6 +57,33 @@ if grep -rn '/usr/bin/' "$repo/dot_config" "$repo/dot_bashrc.d" "$repo/dot_local
 	flunk "hard-coded /usr/bin path in shipped config: $(grep -rn '/usr/bin/' "$repo/dot_config" "$repo/dot_bashrc.d" "$repo/dot_local" | grep -v ':#!/usr/bin/env' | head -3)"
 else
 	pass "no hard-coded /usr/bin paths in shipped config"
+fi
+
+# --- 4. data facts the docs and doctor rely on ---------------------------------
+if out=$(python3 - "$repo/.chezmoidata/packages.toml" <<'PY' 2>&1
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))["packages"]
+errs = []
+if "Debian only" not in d["hyprland"].get("note_debian", ""):
+    errs.append("hyprland note_debian must say it is Debian only (Ubuntu/Mint/Pop!_OS must not add Debian repos)")
+for k, p in d.items():
+    if "AUR" in p.get("note_arch", "") or "AUR" in p.get("manual", ""):
+        errs.append(f"{k}: mentions AUR but every Arch package here is in extra")
+for k in ("cliphist", "hyprpolkitagent", "quickshell", "matugen"):
+    if not d[k].get("arch"):
+        errs.append(f"{k}: arch package name missing")
+for k in ("font-material-symbols", "font-rubik", "font-caskaydia"):
+    if k not in d or d[k].get("bin") != "" or d[k].get("section") != "Fonts":
+        errs.append(f"{k}: must be a doc-only entry (bin = \"\") in the Fonts section")
+if any("maintainer" in p["desc"] for p in d.values()):
+    errs.append("a desc mentions the maintainer's host")
+print("\n".join(errs))
+sys.exit(1 if errs else 0)
+PY
+); then
+	pass "packages.toml: Debian-only note, Arch names, font entries, neutral descriptions"
+else
+	flunk "packages.toml facts: $out"
 fi
 
 exit $fail

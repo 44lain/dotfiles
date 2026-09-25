@@ -36,10 +36,10 @@ Debian-family notes:
 | What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
 | ---- | -------------- | --------------------- | --------------- |
 | idle daemon | `hypridle` | `hypridle` | `hypridle` |
-| compositor | `hyprland` — stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist) | `hyprland` — on Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot and some other derivatives already have backports enabled, so the printed command works as-is there | `hyprland` |
+| compositor | `hyprland` — stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist) | `hyprland` — Debian only (never add Debian repositories on Ubuntu, Linux Mint or Pop!_OS: it breaks the system; there you need a release that ships Hyprland 0.55+ or a source build). On Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot already has backports enabled, so the printed command works as-is there | `hyprland` |
 | lock screen | `hyprlock` | `hyprlock` | `hyprlock` |
 | wallpaper fallback (grootshell draws the wallpaper day to day) | `hyprpaper` | `hyprpaper` | `hyprpaper` |
-| polkit agent | `hyprpolkitagent` | `hyprpolkitagent` | `hyprpolkitagent` — AUR |
+| polkit agent | `hyprpolkitagent` | `hyprpolkitagent` | `hyprpolkitagent` |
 | session manager that wraps every autostart app | `uwsm` | `uwsm` | `uwsm` |
 
 ## Bar / theming (grootshell — not in this repo)
@@ -52,14 +52,14 @@ Hyprland itself still starts fine.
 
 | What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
 | ---- | -------------- | --------------------- | --------------- |
-| wallpaper -> colour palette | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) | cargo install matugen (needs Rust/cargo; Arch: AUR matugen) |
-| Quickshell (runs grootshell: bar, notifications, wallpaper) | COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell | `quickshell` | AUR: quickshell |
+| wallpaper -> colour palette | cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first) | cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first) | `matugen` |
+| Quickshell (runs grootshell: bar, notifications, wallpaper) | COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell | `quickshell` | `quickshell` |
 
 ## Terminal & tools
 
 | What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
 | ---- | -------------- | --------------------- | --------------- |
-| file manager (SUPER+E on the maintainer's host; set file_manager in hosts.toml) | `dolphin` | `dolphin` | `dolphin` |
+| file manager (bound to SUPER+E by default; set file_manager in hosts.toml to use another) | `dolphin` | `dolphin` | `dolphin` |
 | terminal | `kitty` | `kitty` | `kitty` |
 | launcher, power menu, clipboard picker | `rofi` | `rofi` | `rofi` |
 | shell prompt | `starship` — not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/) | `starship` | `starship` |
@@ -74,7 +74,7 @@ turn need `zoxide` and `fzf` (see the clipboard/screenshot table below,
 
 | What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
 | ---- | -------------- | --------------------- | --------------- |
-| clipboard history | `cliphist` | `cliphist` | `cliphist` — AUR |
+| clipboard history | `cliphist` | `cliphist` | `cliphist` |
 | fuzzy finder (clipboard fallback, yazi Z) | `fzf` | `fzf` | `fzf` |
 | screenshots | `grim` | `grim` | `grim` |
 | JSON tool used by rice scripts | `jq` | `jq` | `jq` |
@@ -100,6 +100,17 @@ turn need `zoxide` and `fzf` (see the clipboard/screenshot table below,
 | Bluetooth manager | `blueman` | `blueman` | `blueman` |
 | KDE Connect (only if your host autostarts it) | `kdeconnectd` | `kdeconnect` | `kdeconnect` |
 | NetworkManager tray applet | `network-manager-applet` | `network-manager-gnome` | `network-manager-applet` |
+
+## Fonts
+
+`rice doctor` FAILs when one of these is missing. Where a distro has no
+suitable package, the cell says how to install the font by hand.
+
+| What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
+| ---- | -------------- | --------------------- | --------------- |
+| CaskaydiaCove Nerd Font Mono (terminal) | download CascadiaCode.zip from https://github.com/ryanoasis/nerd-fonts/releases, unzip into ~/.local/share/fonts, run `fc-cache -f` (Fedora's cascadia-code-nf-fonts uses a different family name, so it does not satisfy the check) | download CascadiaCode.zip from https://github.com/ryanoasis/nerd-fonts/releases, unzip into ~/.local/share/fonts, run `fc-cache -f` (Fedora's cascadia-code-nf-fonts uses a different family name, so it does not satisfy the check) | `ttf-cascadia-code-nerd` |
+| Material Symbols Rounded (icons in the bar) | download from https://fonts.google.com/icons, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f` | download from https://fonts.google.com/icons, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f` | `ttf-material-symbols-variable` |
+| Rubik (UI text) | `google-rubik-fonts` | download from https://fonts.google.com/specimen/Rubik, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f` | download from https://fonts.google.com/specimen/Rubik, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f` |
 
 ## Window-rule targets (only if you actually use them — Hyprland doesn't need these to run)
 
