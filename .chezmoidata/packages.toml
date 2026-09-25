@@ -24,6 +24,7 @@ fedora      = "hyprland"
 debian      = "hyprland"
 arch        = "hyprland"
 note_debian = "stable releases keep an old version in the main repo; the newer one is in a backports repo — the command above accounts for that"
+note_fedora = "stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist)"
 
 [packages.hypridle]
 desc     = "idle daemon"
@@ -106,6 +107,7 @@ bin     = "yazi"
 fedora  = "yazi"
 debian  = ""
 arch    = "yazi"
+note_fedora = "not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/)"
 manual  = "see https://yazi-rs.github.io/docs/installation"
 
 [packages.starship]
@@ -115,6 +117,7 @@ bin     = "starship"
 fedora  = "starship"
 debian  = "starship"
 arch    = "starship"
+note_fedora = "not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/)"
 
 [packages.dolphin]
 desc    = "file manager (SUPER+E on the maintainer's host; set file_manager in hosts.toml)"
