@@ -1,9 +1,9 @@
 -- ~/.config/hypr/hyprland.lua
 -- Lean baseline.
 --
--- Lua config: since Hyprland 0.55 the INI (hyprlang) format is deprecated, and
--- on 0.56 window rules exist ONLY in Lua (hl.window_rule{}), so the whole
--- config lives here.
+-- Lua config: since Hyprland 0.55 the INI (hyprlang) format is deprecated and
+-- Lua (hl.window_rule{} & co.) is the native format, so the whole config lives
+-- here. Loads unchanged on 0.55 and 0.56 (test/distro/hyprland-verify.sh).
 --
 -- hyprlock.conf / hypridle.conf / hyprpaper.conf stay INI (separate projects).
 
@@ -129,7 +129,7 @@ hl.config({
         preserve_split = true,
     },
 
-    -- Hyprland 0.56: 'misc:vfr' e 'dwindle:pseudotile' foram removidos; VFR é sempre
+    -- Hyprland 0.55+: 'misc:vfr' e 'dwindle:pseudotile' não existem; VFR é sempre
     -- ligado agora, e o explicit sync do NVIDIA é automático. Não readicionar.
     misc = {
         vrr                      = 0,
