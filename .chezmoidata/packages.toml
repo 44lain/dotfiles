@@ -23,7 +23,7 @@ min_version = "0.55"
 fedora      = "hyprland"
 debian      = "hyprland"
 arch        = "hyprland"
-note_debian = "stable releases keep an old version in the main repo; the newer one is in a backports repo — the command above accounts for that"
+note_debian = "on Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot and some other derivatives already have backports enabled, so the printed command works as-is there"
 note_fedora = "stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist)"
 
 [packages.hypridle]

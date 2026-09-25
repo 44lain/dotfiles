@@ -10,6 +10,8 @@ case $family in
 	debian)
 		export DEBIAN_FRONTEND=noninteractive
 		apt-get update -qq >/dev/null 2>&1
+		# NOTE: this enables backports itself because it assumes the user followed
+		# the hyprland note_debian in packages.toml (stock Debian has it off).
 		# Plain Debian images ship without the backports suite; add it so the
 		# check sees what a user with backports enabled sees.
 		# shellcheck disable=SC1091  # exists only inside the container

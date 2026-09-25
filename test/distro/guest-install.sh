@@ -39,6 +39,9 @@ for c in "${cases[@]}"; do
 		echo "  FAIL: a template did not render"; printf '%s\n' "$out" | grep 'template renders'; fail=1
 	elif ! printf '%s' "$out" | grep -qF "$want"; then
 		echo "  FAIL: doctor did not print '$want'"; printf '%s\n' "$out" | tail -25; fail=1
+	elif [ "$image" = debian:trixie ] && ! printf '%s' "$out" | grep -q backports; then
+		# Stock Debian has backports off: the stranger must be told to enable it.
+		echo "  FAIL: doctor did not mention 'backports' on stock $image"; printf '%s\n' "$out" | tail -25; fail=1
 	else
 		echo "  ok: templates render, doctor prints '$want'"
 	fi

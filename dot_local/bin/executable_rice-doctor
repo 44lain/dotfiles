@@ -126,7 +126,7 @@ else
 					pkg=""
 				fi
 			else
-				extra+=("$key: apt knows no '$pkg' — run 'sudo apt update' first; if it stays empty this release does not package it (see docs/dependencies.md)")
+				extra+=("$key: apt knows no '$pkg' — run 'sudo apt update' first; if it stays empty, the repositories enabled on this system do not carry it — a backports or other repository may (see the notes above and docs/dependencies.md)")
 				pkg=""
 			fi
 		fi
