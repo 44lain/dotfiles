@@ -59,7 +59,8 @@ check:
 	exit $$fail
 
 docs:
-	@chezmoi --source "$(CURDIR)" execute-template < docs/dependencies.md.tmpl > docs/dependencies.md
+	@tmp=$$(mktemp) && chezmoi --source "$(CURDIR)" execute-template < docs/dependencies.md.tmpl > "$$tmp" \
+		&& mv "$$tmp" docs/dependencies.md || { rm -f "$$tmp"; echo "render failed, docs/dependencies.md untouched" >&2; exit 1; }
 	@echo "wrote docs/dependencies.md"
 
 distro-check:

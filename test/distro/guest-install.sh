@@ -14,7 +14,9 @@ tmp=$(mktemp -d); trap 'rm -rf "${tmp:?}"' EXIT
 cat > "$tmp/guest.sh" <<'GUEST'
 set -e
 eval "$PREP"
-sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin >/dev/null
+# same install path as the README (~/.local/bin, put on PATH by hand)
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin >/dev/null
+export PATH="$HOME/.local/bin:$PATH"
 mkdir -p ~/.config/chezmoi
 printf 'sourceDir = "/src"\n[data]\n    profile = "guest"\n    host    = "pentest"\n' > ~/.config/chezmoi/chezmoi.toml
 chezmoi apply --force

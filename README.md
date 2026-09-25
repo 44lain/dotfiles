@@ -47,6 +47,7 @@ git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
 sudo dnf install chezmoi git
 # Debian / Ubuntu / Mint / Kali / Parrot / Pop!_OS …
 sudo apt install git curl && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"   # so the next command finds chezmoi in this shell
 # Arch
 sudo pacman -S chezmoi git
 

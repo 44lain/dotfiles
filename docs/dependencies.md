@@ -24,8 +24,9 @@ Debian-family notes:
   source following its upstream instructions; everything else here works the
   same afterwards.
 - Which distros are actually checked: package names are verified against
-  Debian 13 (with backports), Parrot 7, Fedora 43 and Arch on every
-  `make distro-check`; a stranger's first apply is exercised on Debian 13,
+  Debian 13 (with backports), Parrot 7 and Fedora 43 on every
+  `make distro-check`; for Arch the names resolve in its repositories but no
+  install has been run. A stranger's first apply is exercised on Debian 13,
   Ubuntu 24.04 and Fedora 43. Other derivatives resolve to the same family and
   are best-effort. A full desktop session on a Debian-family distro has not
   been confirmed yet.
