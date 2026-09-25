@@ -17,7 +17,7 @@ help:
 	@echo "  make check              shellcheck + gitleaks"
 	@echo "  make test               run test/*.sh (needs chezmoi; luajit optional)"
 	@echo "  make docs               regenerate docs/dependencies.md from .chezmoidata/packages.toml"
-	@echo "  make distro-check       verify package names and a guest install in containers (docker, network)"
+	@echo "  make distro-check       verify package names, a guest install and hyprland.lua in containers (docker, network)"
 	@echo ""
 	@echo "To apply the dotfiles themselves: chezmoi init, chezmoi diff, chezmoi apply,"
 	@echo "then 'rice apply' for any later change. See README.md."
@@ -64,4 +64,4 @@ docs:
 	@echo "wrote docs/dependencies.md"
 
 distro-check:
-	@bash test/distro/packages.sh && bash test/distro/guest-install.sh
+	@bash test/distro/packages.sh && bash test/distro/guest-install.sh && bash test/distro/hyprland-verify.sh

@@ -5,7 +5,11 @@
 #   soft images  -> reported for information only (may lack Hyprland legitimately)
 set -uo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-command -v docker >/dev/null 2>&1 || { echo "docker not found — skipped"; exit 0; }
+if ! command -v docker >/dev/null 2>&1; then
+	echo "docker not found — skipped"
+	[ "${CI:-}" = true ] && { echo "FAIL: CI must not skip the distro check"; exit 1; }
+	exit 0
+fi
 
 tmp=$(mktemp -d); trap 'rm -rf "${tmp:?}"' EXIT
 # family|image|hard?
@@ -28,13 +32,15 @@ for p in tomllib.load(open(sys.argv[1], "rb"))["packages"].values():
 PY
 }
 
-fail=0
+fail=0; hard_total=0; hard_checked=0
 for entry in "${images[@]}"; do
 	IFS='|' read -r family image mode <<<"$entry"
 	echo "== $image ($family, $mode) =="
+	[ "$mode" = hard ] && hard_total=$((hard_total + 1))
 	if ! docker pull -q "$image" >/dev/null 2>&1; then
 		echo "  cannot pull $image — skipped"; continue
 	fi
+	[ "$mode" = hard ] && hard_checked=$((hard_checked + 1))
 	names_for "$family" > "$tmp/names.tsv"
 	cp "$repo/test/distro/container-check.sh" "$tmp/container-check.sh"
 	if docker run --rm -v "$tmp:/rice:ro" "$image" bash /rice/container-check.sh "$family"; then
@@ -45,4 +51,9 @@ for entry in "${images[@]}"; do
 		echo "  => gaps on $image (information only)"
 	fi
 done
+echo "$hard_checked of $hard_total hard images checked"
+# A hard image that could not be pulled was not checked: never a silent pass in CI.
+if [ "$hard_checked" -lt "$hard_total" ] && [ "${CI:-}" = true ]; then
+	echo "FAIL: hard images were skipped in CI"; fail=1
+fi
 exit $fail

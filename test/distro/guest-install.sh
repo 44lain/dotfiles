@@ -5,7 +5,11 @@
 # Needs docker + network; run with `make distro-check`.
 set -uo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-command -v docker >/dev/null 2>&1 || { echo "docker not found — skipped"; exit 0; }
+if ! command -v docker >/dev/null 2>&1; then
+	echo "docker not found — skipped"
+	[ "${CI:-}" = true ] && { echo "FAIL: CI must not skip the distro check"; exit 1; }
+	exit 0
+fi
 
 tmp=$(mktemp -d); trap 'rm -rf "${tmp:?}"' EXIT
 
@@ -31,21 +35,26 @@ cases=(
 	"fedora:43|dnf install -y -q curl git jq >/dev/null|sudo dnf install"
 )
 
-fail=0
+fail=0; total=${#cases[@]}; checked=0
 for c in "${cases[@]}"; do
 	IFS='|' read -r image prep want <<<"$c"
 	echo "== $image =="
 	if ! docker pull -q "$image" >/dev/null 2>&1; then echo "  cannot pull — skipped"; continue; fi
+	checked=$((checked + 1))
 	out=$(docker run --rm -v "$repo:/src:ro" -v "$tmp:/rice:ro" -e PREP="$prep" "$image" bash /rice/guest.sh 2>&1) || true
 	if printf '%s' "$out" | grep -q 'FAIL template renders'; then
 		echo "  FAIL: a template did not render"; printf '%s\n' "$out" | grep 'template renders'; fail=1
 	elif ! printf '%s' "$out" | grep -qF "$want"; then
 		echo "  FAIL: doctor did not print '$want'"; printf '%s\n' "$out" | tail -25; fail=1
-	elif [ "$image" = debian:trixie ] && ! printf '%s' "$out" | grep -q backports; then
+	elif [ "$image" = debian:trixie ] && ! printf '%s' "$out" | grep -q backports.debian.org; then
 		# Stock Debian has backports off: the stranger must be told to enable it.
-		echo "  FAIL: doctor did not mention 'backports' on stock $image"; printf '%s\n' "$out" | tail -25; fail=1
+		echo "  FAIL: doctor did not mention 'backports.debian.org' on stock $image"; printf '%s\n' "$out" | tail -25; fail=1
 	else
 		echo "  ok: templates render, doctor prints '$want'"
 	fi
 done
+echo "$checked of $total hard images checked"
+if [ "$checked" -lt "$total" ] && [ "${CI:-}" = true ]; then
+	echo "FAIL: images were skipped in CI"; fail=1
+fi
 exit $fail

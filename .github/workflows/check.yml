@@ -37,14 +37,3 @@ jobs:
 
       - name: make test
         run: make test
-
-  distro:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install chezmoi and jq
-        run: |
-          sudo apt-get update && sudo apt-get install -y jq
-          sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
-      - name: Package names exist + guest install works
-        run: make distro-check

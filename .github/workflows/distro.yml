@@ -1,0 +1,40 @@
+name: distro
+
+# Slow (pulls container images, hits distro mirrors), so it only runs when
+# something it verifies changes, weekly (upstream repos change under us) and
+# on demand. The fast checks live in check.yml and run on every push.
+on:
+  push:
+    paths:
+      - ".chezmoidata/packages.toml"
+      - "test/distro/**"
+      - "dot_local/bin/executable_rice-doctor"
+      - "dot_local/bin/executable_rice-onboard"
+      - "dot_config/hypr/**"
+      - ".github/workflows/distro.yml"
+  pull_request:
+    paths:
+      - ".chezmoidata/packages.toml"
+      - "test/distro/**"
+      - "dot_local/bin/executable_rice-doctor"
+      - "dot_local/bin/executable_rice-onboard"
+      - "dot_config/hypr/**"
+      - ".github/workflows/distro.yml"
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  distro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install chezmoi and jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
+      - name: Package names exist, guest install works, hyprland.lua loads
+        run: make distro-check # CI=true is set by Actions: skipped images fail the job
