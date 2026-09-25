@@ -56,6 +56,54 @@ apt_lookup() {
 	return 0
 }
 
+# --- package data (.chezmoidata/packages.toml via chezmoi) -------------------
+family=$(os_family)
+case $family in
+	fedora) inst="sudo dnf install" ;;
+	debian) inst="sudo apt install" ;;
+	arch)   inst="sudo pacman -S" ;;
+	*)      inst="" ;;
+esac
+rows=""; data_failed=""
+if have chezmoi && have jq; then
+	if raw=$(chezmoi data --format=json 2>/dev/null) && rows=$(jq -r --arg fam "$family" '
+		(.packages // {}) | to_entries[] | .value as $p
+		| [.key, ($p.desc // ""), ($p.bin // ""), (($p.required // false) | tostring),
+		   ($p[$fam] // ""), ($p["note_" + $fam] // ""), ($p.manual // ""), ($p.min_version // "")]
+		| join("\u001f")' <<<"$raw" 2>/dev/null); then
+		:
+	else
+		data_failed=1
+	fi
+else
+	data_failed=1
+fi
+
+# too_old_hint — Hyprland is installed but older than HYPRLAND_MIN: print what
+# to install, using the same rules as the missing-package path below.
+too_old_hint() {
+	local key desc bin required pkg note manual minv flag=""
+	while IFS=$'\037' read -r key desc bin required pkg note manual minv; do
+		[ "$bin" = Hyprland ] || continue
+		if [ -n "$pkg" ] && [ "$family" = debian ]; then
+			if ! apt_lookup "$pkg"; then
+				printf '       note: apt knows no '"'%s'"' — run '"'sudo apt update'"' first; if it stays empty, the repositories enabled on this system do not carry it (see the notes below and docs/dependencies.md)\n' "$pkg"
+				pkg=""
+			elif [ "$(printf '%s\n%s\n' "$HYPRLAND_MIN" "$APT_BEST" | sort -V | head -1)" != "$HYPRLAND_MIN" ]; then
+				printf '       note: the newest version apt knows is %s, but %s or newer is needed — see docs/dependencies.md\n' "$APT_BEST" "$HYPRLAND_MIN"
+				pkg=""
+			else
+				flag=${APT_FLAG:+ $APT_FLAG}
+			fi
+		fi
+		[ -z "$inst" ] || [ -z "$pkg" ] || printf '       %s%s %s\n' "$inst" "$flag" "$pkg"
+		[ -z "$note" ] || printf '       note: %s\n' "$note"
+		{ [ -n "$pkg" ] || [ -z "$manual" ]; } || printf '       note: %s\n' "$manual"
+		return
+	done <<<"$rows"
+	echo "       see docs/dependencies.md"
+}
+
 echo "== configs parse =="
 if have chezmoi && src=$(chezmoi source-path 2>/dev/null) && [ -n "$src" ]; then
 	# .chezmoi.*.tmpl (e.g. .chezmoi.toml.tmpl) is chezmoi's own init-time
@@ -80,7 +128,8 @@ if have Hyprland; then
 	elif [ "$(printf '%s\n%s\n' "$HYPRLAND_MIN" "$ver" | sort -V | head -1)" = "$HYPRLAND_MIN" ]; then
 		ok "Hyprland $ver (needs $HYPRLAND_MIN or newer)"
 	else
-		bad "Hyprland $ver is older than $HYPRLAND_MIN — hyprland.lua needs a newer Hyprland, see docs/dependencies.md"
+		bad "Hyprland $ver is older than $HYPRLAND_MIN — hyprland.lua needs a newer Hyprland"
+		too_old_hint
 	fi
 	if out=$(Hyprland --verify-config 2>&1); then
 		ok "Hyprland --verify-config"
@@ -92,20 +141,13 @@ else
 fi
 
 echo "== dependencies =="
-family=$(os_family)
-rows=""
-if have chezmoi && have jq; then
-	rows=$(chezmoi data --format=json 2>/dev/null | jq -r --arg fam "$family" '
-		(.packages // {}) | to_entries[] | .value as $p
-		| [.key, ($p.desc // ""), ($p.bin // ""), (($p.required // false) | tostring),
-		   ($p[$fam] // ""), ($p["note_" + $fam] // ""), ($p.manual // ""), ($p.min_version // "")]
-		| join("\u001f")' 2>/dev/null || true)
-fi
-if [ -z "$rows" ]; then
+if [ -n "$data_failed" ]; then
+	warn "cannot check dependencies: jq/chezmoi missing or chezmoi data failed"
+elif [ -z "$rows" ]; then
 	ok "no package data to check (.chezmoidata/packages.toml)"
 else
 	total=0; missing=0
-	declare -A by_flag=()
+	declare -A by_flag=()   # key: R|<flag> (required) or O|<flag> (optional)
 	extra=()
 	while IFS=$'\037' read -r key desc bin required pkg note manual minv; do
 		[ -n "$bin" ] || continue
@@ -126,30 +168,28 @@ else
 					pkg=""
 				fi
 			else
-				extra+=("$key: apt knows no '$pkg' — run 'sudo apt update' first; if it stays empty, the repositories enabled on this system do not carry it — a backports or other repository may (see the notes above and docs/dependencies.md)")
+				extra+=("$key: apt knows no '$pkg' — run 'sudo apt update' first; if it stays empty, the repositories enabled on this system do not carry it — a backports or other repository may (see the notes below and docs/dependencies.md)")
 				pkg=""
 			fi
 		fi
-		[ -z "$pkg" ] || by_flag["${flag:-plain}"]+=" $pkg"
+		grp=O; [ "$required" != true ] || grp=R
+		[ -z "$pkg" ] || by_flag["$grp|${flag:-plain}"]+=" $pkg"
 		[ -z "$note" ] || extra+=("$key: $note")
 		{ [ -n "$pkg" ] || [ -z "$manual" ]; } || extra+=("$key: $manual")
 	done <<<"$rows"
 	if [ "$missing" -eq 0 ]; then
 		ok "all $total checked dependencies present"
 	else
-		case $family in
-			fedora) inst="sudo dnf install" ;;
-			debian) inst="sudo apt install" ;;
-			arch)   inst="sudo pacman -S" ;;
-			*)      inst="" ;;
-		esac
 		if [ -n "$inst" ]; then
-			if [ "${#by_flag[@]}" -gt 0 ]; then
+			# required packages first, optional ones on their own line(s)
+			for grp in R O; do
 				for k in "${!by_flag[@]}"; do
-					f=""; [ "$k" = plain ] || f=" $k"
-					printf '       %s%s%s\n' "$inst" "$f" "${by_flag[$k]}"
+					[ "${k%%|*}" = "$grp" ] || continue
+					f=${k#*|}; [ "$f" = plain ] && f="" || f=" $f"
+					lead="      "; [ "$grp" = O ] && lead="  (optional)"
+					printf '     %s %s%s%s\n' "$lead" "$inst" "$f" "${by_flag[$k]}"
 				done
-			fi
+			done
 		else
 			echo "       distro not recognised — install the tools above with your package manager"
 		fi
@@ -188,7 +228,7 @@ if have fc-list; then
 		if grep -qiF "$font" <<<"$fonts"; then
 			ok "font: $font"
 		else
-			bad "font missing: $font"
+			bad "font missing: $font — see the Fonts section of docs/dependencies.md"
 		fi
 	done
 else

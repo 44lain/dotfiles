@@ -30,7 +30,9 @@ case "$1" in
 			exit 1
 		fi
 		echo "rendered ok" ;;
-	data) cat "$SB/data.json" 2>/dev/null || echo '{}' ;;
+	data)
+		[ -f "$SB/data-fails" ] && exit 1
+		cat "$SB/data.json" 2>/dev/null || echo '{}' ;;
 	*) exit 0 ;;
 esac
 FAKE
@@ -114,7 +116,7 @@ reset_healthy() {
 	# chezmoi's own init-time template — execute-template can't render it
 	# outside `chezmoi init` (promptStringOnce undefined); doctor must skip it.
 	printf 'FAIL' > "$sandbox/src/.chezmoi.toml.tmpl"
-	rm -f "$SB/hyprland-verify-fails"
+	rm -f "$SB/hyprland-verify-fails" "$SB/data-fails"
 	printf '%s\n' "qs -p /home/user/.config/quickshell/grootshell" "hypridle" > "$SB/running-procs"
 	printf '%s\n' "$all_fonts" > "$SB/fc-list-output"
 	: > "$SB/active-services"
@@ -160,8 +162,8 @@ fi
 reset_healthy
 printf 'Rubik\nCaskaydiaCove Nerd Font Mono\n' > "$SB/fc-list-output"
 out=$(run 2>&1); rc=$?
-if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qi "FAIL.*Material Symbols Rounded"; then
-	pass "doctor: missing font -> FAIL, exit 1"
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qi "FAIL.*Material Symbols Rounded.*dependencies.md"; then
+	pass "doctor: missing font -> FAIL pointing at docs, exit 1"
 else
 	flunk "doctor: missing font (rc=$rc out=<$out>)"
 fi
@@ -244,8 +246,8 @@ reset_healthy; pkgs_json; os_release "$parrot"
 printf ' pkg-deb | 0.52.2+ds-2 | https://example.test/distro echo/main amd64 Packages\n' > "$SB/apt/madison-pkg-deb"
 printf '  Candidate: 0.52.2+ds-2\n' > "$SB/apt/policy-pkg-deb"
 out=$(run 2>&1)
-if printf '%s' "$out" | grep -q '0.55 or newer is needed'; then
-	pass "doctor D3: apt release too old -> says so"
+if printf '%s' "$out" | grep -q '0.55 or newer is needed' && ! printf '%s' "$out" | grep -q 'apt install .*pkg-deb'; then
+	pass "doctor D3: apt release too old -> says so, no command for it"
 else
 	flunk "doctor D3 (out=<$out>)"
 fi
@@ -351,6 +353,82 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'WARN.*Hyprland version'; the
 	pass "doctor V3: unreadable version -> WARN, exit 0"
 else
 	flunk "doctor V3 (rc=$rc out=<$out>)"
+fi
+
+# V4. Hyprland installed but too old on the Debian family -> FAIL plus the
+# full install command from apt's own data (same rules as a missing package)
+hypr_json() {
+	printf '{"packages":{"hl":{"desc":"compositor","bin":"Hyprland","required":true,"min_version":"0.55","fedora":"hl-fed","debian":"pkg-deb","arch":"hl-arch"}}}' > "$SB/data.json"
+}
+reset_healthy; hypr_json; os_release "$parrot"; madison_two
+printf '  Candidate: 0.52.2+ds-2\n' > "$SB/apt/policy-pkg-deb"
+printf 'Hyprland 0.52.2 built from branch main\n' > "$SB/hyprland-version"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'FAIL.*0.52.2.*0.55' \
+	&& printf '%s' "$out" | grep -q 'sudo apt install -t echo-backports pkg-deb'; then
+	pass "doctor V4: too-old Hyprland on Debian family -> FAIL + full apt command"
+else
+	flunk "doctor V4 (rc=$rc out=<$out>)"
+fi
+
+# V5. too old and apt only knows old versions -> says so, no command for it
+reset_healthy; hypr_json; os_release "$parrot"
+printf ' pkg-deb | 0.52.2+ds-2 | https://example.test/distro echo/main amd64 Packages\n' > "$SB/apt/madison-pkg-deb"
+printf '  Candidate: 0.52.2+ds-2\n' > "$SB/apt/policy-pkg-deb"
+printf 'Hyprland 0.52.2 built from branch main\n' > "$SB/hyprland-version"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q '0.55 or newer is needed' \
+	&& ! printf '%s' "$out" | grep -q 'apt install .*pkg-deb'; then
+	pass "doctor V5: too-old Hyprland, apt has nothing newer -> explains, no command"
+else
+	flunk "doctor V5 (rc=$rc out=<$out>)"
+fi
+
+# V6. too old on Fedora -> plain dnf command
+reset_healthy; hypr_json; os_release 'ID=fedora\n'
+printf 'Hyprland 0.52.2 built from branch main\n' > "$SB/hyprland-version"
+out=$(run 2>&1)
+if printf '%s' "$out" | grep -qF 'sudo dnf install hl-fed'; then
+	pass "doctor V6: too-old Hyprland on Fedora -> dnf command"
+else
+	flunk "doctor V6 (out=<$out>)"
+fi
+
+# D10. package data unavailable (chezmoi data fails) -> WARN, never a fake "ok"
+reset_healthy; pkgs_json; os_release "$parrot"; : > "$SB/data-fails"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'WARN cannot check dependencies' \
+	&& ! printf '%s' "$out" | grep -q 'ok   no package data'; then
+	pass "doctor D10: chezmoi data fails -> WARN cannot check dependencies"
+else
+	flunk "doctor D10 (rc=$rc out=<$out>)"
+fi
+rm -f "$SB/data-fails"
+
+# D11. required and optional packages are printed on separate lines
+reset_healthy; pkgs_json; os_release "$parrot"
+for p in pkg-deb opt-deb; do
+	printf ' %s | 0.56.1-1 | https://example.test/distro stable/main amd64 Packages\n' "$p" > "$SB/apt/madison-$p"
+	printf '  Candidate: 0.56.1-1\n' > "$SB/apt/policy-$p"
+done
+out=$(run 2>&1)
+req_line=$(printf '%s\n' "$out" | grep 'sudo apt install' | grep -v optional)
+opt_line=$(printf '%s\n' "$out" | grep 'sudo apt install' | grep optional)
+if printf '%s' "$req_line" | grep -q 'pkg-deb' && ! printf '%s' "$req_line" | grep -q 'opt-deb' \
+	&& printf '%s' "$opt_line" | grep -q 'opt-deb' && ! printf '%s' "$opt_line" | grep -q 'pkg-deb'; then
+	pass "doctor D11: required and optional installs on separate lines"
+else
+	flunk "doctor D11 (out=<$out>)"
+fi
+
+# D12. doc-only entries (bin = "") are never reported missing
+reset_healthy; os_release 'ID=fedora\n'
+printf '{"packages":{"f":{"desc":"a font","section":"Fonts","bin":"","fedora":"","manual":"by hand"}}}' > "$SB/data.json"
+out=$(run 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -qE 'WARN|FAIL'; then
+	pass "doctor D12: doc-only entry is not a missing binary"
+else
+	flunk "doctor D12 (rc=$rc out=<$out>)"
 fi
 
 exit $fail
