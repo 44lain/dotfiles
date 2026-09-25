@@ -1,5 +1,7 @@
 {{- /* wallpaper_path is optional: unset -> no wallpaper blocks (grootshell draws
-       the wallpaper day to day; hyprpaper is only the fallback). */ -}}
+       the wallpaper day to day; hyprpaper is only the fallback). `get` because a chezmoi.toml written before
+       this key existed has no entry, and a missing map key is a template error. */ -}}
+{{- $wallpaper := get . "wallpaper_path" -}}
 {{- if not (hasKey .hosts .host) -}}
 {{- fail (printf "host %q (from ~/.config/chezmoi/chezmoi.toml) has no [hosts.%s] entry in .chezmoidata/hosts.toml. Known hosts: %s." .host .host (keys .hosts | join ", ")) -}}
 {{- end -}}
@@ -10,12 +12,12 @@ splash = false
 # `wallpaper = MON,path` foi removido e era ignorado silenciosamente).
 # One block per monitor in .chezmoidata/hosts.toml (host = "{{ .host }}") — a
 # blank monitor name is hyprpaper's "any monitor not matched above".
-{{- if .wallpaper_path }}
+{{- if $wallpaper }}
 {{- range (index .hosts .host).monitors }}
 
 wallpaper {
     monitor = {{ .output }}
-    path = {{ $.wallpaper_path }}
+    path = {{ $wallpaper }}
 }
 {{- end }}
 {{- end }}

@@ -13,14 +13,14 @@ bad() { printf '  FAIL %s\n' "$1"; fail=1; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-render() { # render <tmpl-relpath> <wallpaper_path>
+render() { # render <tmpl-relpath> <wallpaper_path>  ("-" = leave the key out entirely)
 	cat > "$tmp/chezmoi.toml" <<-EOF
 	sourceDir = "$repo"
 	[data]
 	    profile = "personal"
 	    host = "desktop"
-	    wallpaper_path = "$2"
 	EOF
+	[ "$2" = "-" ] || printf '    wallpaper_path = "%s"\n' "$2" >> "$tmp/chezmoi.toml"
 	chezmoi execute-template -f "$repo/$1" --config "$tmp/chezmoi.toml" 2>&1
 }
 
@@ -49,6 +49,17 @@ if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'wallpaper {'; then
 else
 	bad "hyprpaper.conf.tmpl did not render cleanly on empty wallpaper_path: $out"
 fi
+
+# --- a chezmoi.toml that predates wallpaper_path (key absent, not empty) ---
+# Found by test/distro/guest-install.sh: "map has no entry for key".
+for t in hyprlock hyprpaper; do
+	out=$(render "dot_config/hypr/$t.conf.tmpl" "-"); rc=$?
+	if [ "$rc" -eq 0 ]; then
+		ok "$t.conf.tmpl renders when the wallpaper_path key is absent"
+	else
+		bad "$t.conf.tmpl fails when the wallpaper_path key is absent: $out"
+	fi
+done
 
 # --- renders the set path -----------------------------------------------
 out=$(render dot_config/hypr/hyprlock.conf.tmpl "/tmp/test-wall.jpg"); rc=$?

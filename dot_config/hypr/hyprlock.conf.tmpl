@@ -1,13 +1,16 @@
 {{- /* wallpaper_path is optional (machine-local, ~/.config/chezmoi/chezmoi.toml
        [data]). Unset -> a plain dark background, so a first apply on a fresh
-       machine works without asking for a wallpaper. */ -}}
-{{- if .wallpaper_path -}}
-$wallpaper = {{ .wallpaper_path }}
+       machine works without asking for a wallpaper. `get` (not .wallpaper_path)
+       because a chezmoi.toml written before this key existed has no such
+       entry, and a missing map key is a hard template error. */ -}}
+{{- $wallpaper := get . "wallpaper_path" -}}
+{{- if $wallpaper -}}
+$wallpaper = {{ $wallpaper }}
 
 {{ end -}}
 background {
     monitor =
-{{- if .wallpaper_path }}
+{{- if $wallpaper }}
     path = $wallpaper
     blur_passes = 1
     blur_size = 4
