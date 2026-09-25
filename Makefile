@@ -8,7 +8,7 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check test bashrc-hook cursor-extensions
+.PHONY: help check test distro-check bashrc-hook cursor-extensions
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make cursor-extensions  install the extensions listed in docs/"
 	@echo "  make check              shellcheck + gitleaks"
 	@echo "  make test               run test/*.sh (needs chezmoi; luajit optional)"
+	@echo "  make distro-check       verify package names and a guest install in containers (docker, network)"
 	@echo ""
 	@echo "To apply the dotfiles themselves: chezmoi init, chezmoi diff, chezmoi apply,"
 	@echo "then 'rice apply' for any later change. See README.md."
@@ -49,9 +50,12 @@ cursor-extensions:
 check:
 	@fail=0; \
 	if command -v shellcheck >/dev/null; then \
-		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh bin/executable_*.sh dot_local/bin/* || fail=1; \
+		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh test/distro/*.sh bin/executable_*.sh dot_local/bin/* || fail=1; \
 	else echo "shellcheck not installed — skipped" >&2; fi; \
 	if command -v gitleaks >/dev/null; then \
 		gitleaks detect --source . --no-banner --redact || fail=1; \
 	else echo "gitleaks NOT installed — cannot verify before push" >&2; fail=1; fi; \
 	exit $$fail
+
+distro-check:
+	@bash test/distro/packages.sh && bash test/distro/guest-install.sh
