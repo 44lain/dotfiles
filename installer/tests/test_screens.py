@@ -1,0 +1,324 @@
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from installer import model, recipes, screens
+from installer.messages import translator
+from installer.recipes import Ctx
+from installer.tests.fake_ui import FakeUI
+from installer.tests.fakes import cp, make_env
+from installer.ui import BACK, CANCEL
+
+TOML = """
+[packages.kitty]
+desc = "terminal"
+section = "Terminal & tools"
+bin = "kitty"
+required = true
+fedora = "kitty"
+debian = "kitty"
+arch = "kitty"
+
+[packages.rofi]
+desc = "launcher"
+section = "Terminal & tools"
+bin = "rofi"
+fedora = "rofi"
+debian = "rofi"
+arch = "rofi"
+"""
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        # independent of the ambient desktop session (the maintainer's machine runs Hyprland)
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop("HYPRLAND_INSTANCE_SIGNATURE", None)
+        os.environ.pop("XDG_CURRENT_DESKTOP", None)
+        self.tmp = Path(self._tmp.name)
+        self.home = str(self.tmp / "home")
+        (self.tmp / "repo/.chezmoidata").mkdir(parents=True)
+        (self.tmp / "repo/.chezmoidata/packages.toml").write_text(TOML)
+        os.makedirs(self.home)
+        self.calls = []
+
+    def state(self, env=None, runner=None, lang="en", family="debian"):
+        env = env or make_env(home=self.home)
+        ctx = Ctx(home=self.home, runner=runner or self.runner, sudo=["sudo", "-n"])
+        s = screens.State(family=family, repo=self.tmp / "repo", home=self.home, env=env, ctx=ctx,
+                          log_path=str(self.tmp / "install.log"))
+        s.set_lang(lang)
+        return s
+
+    def runner(self, argv, on_line=None):
+        self.calls.append(list(argv))
+        return cp(0, "")
+
+
+class ClassifyDoctor(unittest.TestCase):
+    LINES = ["== services up ==", "  ok   hypridle running",
+             "  FAIL grootshell (qs) not running", "  FAIL hypridle not running",
+             "  WARN missing: age (age) — secrets", "  FAIL font missing: Rubik — see docs",
+             "       sudo apt install x"]
+
+    def test_session_only_failures_are_informational_outside_hyprland(self):
+        out = dict((m, k) for k, m in screens.classify_doctor(self.LINES, in_hyprland=False))
+        self.assertEqual(out["grootshell (qs) not running"], "info")
+        self.assertEqual(out["hypridle not running"], "info")
+        self.assertEqual(out["font missing: Rubik — see docs"], "fail")
+
+    def test_inside_hyprland_they_stay_failures(self):
+        out = dict((m, k) for k, m in screens.classify_doctor(self.LINES, in_hyprland=True))
+        self.assertEqual(out["hypridle not running"], "fail")
+
+    def test_kinds(self):
+        kinds = [k for k, _ in screens.classify_doctor(self.LINES, in_hyprland=True)]
+        self.assertEqual(kinds, ["head", "ok", "fail", "fail", "warn", "fail", "note"])
+
+
+class Preferences(Base):
+    def wall(self):
+        d = Path(self.home, "Pictures/wp")
+        d.mkdir(parents=True)
+        (d / "a.jpg").write_bytes(b"x")
+        return str(d)
+
+    def test_collects_valid_answers(self):
+        wall = self.wall()
+        ui = FakeUI("Ana", "ana@example.com", wall, "first")
+        s = self.state()
+        self.assertEqual(screens.preferences(ui, s), "next")
+        self.assertEqual((s.git_name, s.git_email, s.wall_dir), ("Ana", "ana@example.com", wall))
+        self.assertEqual(s.wall_image, f"{wall}/a.jpg")
+
+    def test_invalid_path_is_reported_through_the_validator(self):
+        ui = FakeUI("Ana", "ana@example.com", "home/ana/wp", "skip")
+        s = self.state()
+        screens.preferences(ui, s)
+        self.assertIn("False:", ui.text_of("validated"))
+        self.assertIn("not an absolute path", ui.text_of("validated"))
+
+    def test_back_and_cancel_propagate(self):
+        self.assertEqual(screens.preferences(FakeUI(BACK), self.state()), "back")
+        self.assertEqual(screens.preferences(FakeUI(CANCEL), self.state()), "cancel")
+
+
+class ProfileHost(Base):
+    def test_guest_gets_a_new_host_and_the_maintainers_hosts_are_not_offered(self):
+        env = make_env(home=self.home, outputs={
+            "chezmoi data": cp(0, '{"hosts": {"desktop": {}, "pentest": {}}}')})
+        ui = FakeUI("guest", "parrot-laptop")
+        s = self.state(env=env)
+        self.assertEqual(screens.profile_host(ui, s), "next")
+        self.assertEqual((s.profile, s.host, s.host_is_new), ("guest", "parrot-laptop", True))
+        self.assertEqual([k for k, _ in ui.asked], ["menu", "text"])  # no host menu for guest
+
+    def test_personal_can_pick_a_known_host(self):
+        env = make_env(home=self.home, outputs={"chezmoi data": cp(0, '{"hosts": {"desktop": {}}}')})
+        ui = FakeUI("personal", "desktop")
+        s = self.state(env=env)
+        screens.profile_host(ui, s)
+        self.assertEqual((s.host, s.host_is_new), ("desktop", False))
+
+
+class Scan(Base):
+    def test_nothing_to_do_jumps_to_configure(self):
+        env = make_env(home=self.home, which={"kitty", "rofi"})
+        ui = FakeUI()
+        r = screens.scan_screen(ui, self.state(env=env))
+        self.assertEqual(r, screens.IDX["configure"])
+
+    def test_missing_continues_to_the_plan(self):
+        env = make_env(home=self.home, which={"kitty"}, outputs={
+            "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
+            "apt-cache policy rofi": cp(0, "Candidate: 1.7\n")})
+        ui = FakeUI("next")
+        s = self.state(env=env)
+        self.assertEqual(screens.scan_screen(ui, s), "next")
+        self.assertEqual([x.key for x in model.actionable(s.statuses)], ["rofi"])
+
+
+class Plan(Base):
+    def prepared(self, env=None):
+        env = env or make_env(home=self.home, which={"kitty"}, outputs={
+            "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
+            "apt-cache policy rofi": cp(0, "Candidate: 1.7\n"),
+            "apt-get -s install rofi": cp(0, "Inst rofi\n")})
+        s = self.state(env=env)
+        s.statuses = model.scan(model.load_packages(s.repo / ".chezmoidata/packages.toml"), s.family, env)
+        return s
+
+    def test_declining_the_confirmation_installs_nothing(self):
+        # Review Focus 1
+        ui = FakeUI(["rofi"], False)
+        s = self.prepared()
+        self.assertEqual(screens.plan_screen(ui, s), "back")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(s.plan, [])
+
+    def test_confirming_stores_the_plan_and_shows_exact_commands(self):
+        ui = FakeUI(["rofi"], True)
+        s = self.prepared()
+        self.assertEqual(screens.plan_screen(ui, s), "next")
+        self.assertEqual(len(s.plan), 1)
+        self.assertIn("sudo apt-get install -y rofi", ui.text_of("info"))
+        self.assertIn("NOT removed", ui.text_of("warn"))
+
+    def test_a_failed_simulation_is_shown_before_the_confirmation(self):
+        env = make_env(home=self.home, which={"kitty"}, outputs={
+            "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
+            "apt-cache policy rofi": cp(0, "Candidate: 1.7\n"),
+            "apt-get -s install rofi": cp(100, "E: Unable to correct problems\n")})
+        ui = FakeUI(["rofi"], False)
+        screens.plan_screen(ui, self.prepared(env))
+        self.assertIn("Unable to correct problems", ui.text_of("error"))
+
+    def test_required_items_are_preselected(self):
+        ui = FakeUI(CANCEL)
+        screens.plan_screen(ui, self.prepared())
+        self.assertEqual({i.key: i.checked for i in ui.last_items}, {"rofi": False})
+
+
+class Install(Base):
+    def planned(self, runner):
+        env = make_env(home=self.home, which={"kitty"}, outputs={
+            "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
+            "apt-cache policy rofi": cp(0, "Candidate: 1.7\n")})
+        s = self.state(env=env, runner=runner)
+        sts = model.scan(model.load_packages(s.repo / ".chezmoidata/packages.toml"), s.family, env)
+        s.plan = model.build_plan(sts, {"rofi"}, s.family)
+        return s
+
+    def test_runs_every_step_and_summarises(self):
+        s = self.planned(self.runner)
+        ui = FakeUI()
+        self.assertEqual(screens.install_screen(ui, s), "next")
+        self.assertIn(["sudo", "-n", "apt-get", "install", "-y", "rofi"], self.calls)
+        self.assertIn("Installed: 1", ui.text_of("info") + ui.text_of("success"))
+        self.assertIn(["sudo", "-v"], ui.suspended)
+
+    def test_failure_offers_retry_skip_abort(self):
+        # Review Focus 5: a failing step never produces a traceback
+        outcomes = [cp(100, "E: network is unreachable\n"), cp(0, "")]
+        s = self.planned(lambda argv, on_line=None: outcomes.pop(0))
+        ui = FakeUI("retry")
+        self.assertEqual(screens.install_screen(ui, s), "next")
+        self.assertIn("network is unreachable", ui.text_of("error"))
+        self.assertEqual(outcomes, [])
+
+    def test_skip_continues_and_abort_stops(self):
+        bad = lambda argv, on_line=None: cp(100, "E: boom\n")
+        self.assertEqual(screens.install_screen(FakeUI("skip"), self.planned(bad)), "next")
+        ui = FakeUI("abort")
+        self.assertEqual(screens.install_screen(ui, self.planned(bad)), "cancel")
+        self.assertIn("rice tui again", ui.text_of("warn") + ui.text_of("info"))
+
+    def test_expired_sudo_reauthenticates_and_retries(self):
+        outcomes = [cp(1, "sudo: a password is required\n"), cp(0, "")]
+        s = self.planned(lambda argv, on_line=None: outcomes.pop(0))
+        ui = FakeUI()
+        screens.install_screen(ui, s)
+        self.assertEqual(ui.suspended.count(["sudo", "-v"]), 2)
+
+    def test_refusing_sudo_installs_nothing(self):
+        s = self.planned(self.runner)
+        ui = FakeUI()
+        ui.suspend_rc = 1
+        self.assertEqual(screens.install_screen(ui, s), "cancel")
+        self.assertEqual(self.calls, [])
+
+    def test_root_needs_no_sudo_prompt(self):
+        s = self.planned(self.runner)
+        s.ctx.sudo = []
+        ui = FakeUI()
+        screens.install_screen(ui, s)
+        self.assertEqual(ui.suspended, [])
+
+
+class Configure(Base):
+    def ready(self, **kw):
+        s = self.state()
+        s.profile, s.host, s.host_is_new = "guest", "parrot", True
+        s.git_name, s.git_email = "Ana", "ana@example.com"
+        s.wall_dir, s.wall_image = kw.get("wall_dir", ""), kw.get("wall_image", "")
+        return s
+
+    def test_runs_init_bin_then_onboard_with_flags(self):
+        Path(self.home, ".bashrc").write_text("# stock\n")
+        s = self.ready(wall_dir=str(self.tmp), wall_image="")
+        ui = FakeUI(True, True)  # loader? yes; apply now? yes
+        self.assertEqual(screens.configure_screen(ui, s), "next")
+        flat = [" ".join(c) for c in self.calls]
+        self.assertTrue(any(c.startswith("chezmoi init --promptDefaults") for c in flat))
+        self.assertTrue(any(c.startswith("chezmoi apply") and c.endswith(".local/bin") for c in flat))
+        onboard = ui.suspended[0]
+        self.assertTrue(onboard[0].endswith("rice-onboard"))
+        for pair in (["--profile", "guest"], ["--host", "parrot"], ["--git-name", "Ana"],
+                     ["--git-email", "ana@example.com"], ["--bashrc-loader", "yes"]):
+            i = onboard.index(pair[0])
+            self.assertEqual(onboard[i + 1], pair[1])
+        self.assertIn("--accept-detected", onboard)
+        shell = json.loads(Path(self.home, ".config/grootshell/shell.json").read_text())
+        self.assertEqual(shell["wallpaper"]["directory"], str(self.tmp))
+
+    def test_declining_applies_nothing(self):
+        s = self.ready()
+        ui = FakeUI(False, False)
+        self.assertEqual(screens.configure_screen(ui, s), "back")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(ui.suspended, [])
+
+    def test_invalid_shell_json_is_reported_and_left_alone(self):
+        p = Path(self.home, ".config/grootshell/shell.json")
+        p.parent.mkdir(parents=True)
+        p.write_text("{ nope")
+        s = self.ready(wall_dir=str(self.tmp))
+        ui = FakeUI(True, True)
+        screens.configure_screen(ui, s)
+        self.assertEqual(p.read_text(), "{ nope")
+        self.assertIn("left untouched", ui.text_of("error"))
+
+
+class Verify(Base):
+    def test_shows_doctor_results_and_the_way_back(self):
+        doctor = "== services up ==\n  FAIL hypridle not running\n  ok   fonts\n"
+        s = self.state(runner=lambda argv, on_line=None: cp(1, doctor))
+        os.makedirs(os.path.join(self.home, ".local/bin"))
+        Path(self.home, ".local/bin/rice").write_text("#!/bin/sh\n")
+        ui = FakeUI("next")
+        self.assertEqual(screens.verify_screen(ui, s), "next")
+        shown = ui.text_of("info") + ui.text_of("success") + ui.text_of("warn") + ui.text_of("error")
+        self.assertIn("starts with the Hyprland session", shown)
+        self.assertIn("How to go back", shown)
+        self.assertIn("rice uninstall", shown)
+
+    def test_missing_doctor_is_a_message_not_a_crash(self):
+        s = self.state(runner=lambda argv, on_line=None: cp(127, "command not found"))
+        ui = FakeUI()
+        screens.verify_screen(ui, s)
+        self.assertIn("could not be run", ui.text_of("error"))
+
+
+class Flow(Base):
+    def test_cancel_at_the_first_screen(self):
+        ui = FakeUI(CANCEL)
+        self.assertEqual(screens.run_flow(ui, self.state()), 1)
+        self.assertIn("Stopped", ui.text_of("warn"))
+
+    def test_language_switch_redraws_in_portuguese(self):
+        ui = FakeUI("lang", CANCEL)
+        s = self.state()
+        screens.run_flow(ui, s)
+        self.assertEqual(s.lang, "pt_br")
+        self.assertIn("Boas-vindas", ui.text_of("title"))
+
+
+if __name__ == "__main__":
+    unittest.main()
