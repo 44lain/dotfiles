@@ -167,7 +167,32 @@ def _git_clone(spec: dict, ctx: Ctx) -> None:
     _check(ctx, ["git", "clone", "--branch", spec["branch"], spec["url"], dest])
 
 
-KINDS = {"release-binary": _release_binary, "fonts": _fonts, "git-clone": _git_clone}
+def _apt_repo(spec: dict, ctx: Ctx) -> None:
+    if ctx.exists(spec["source_file"]):
+        ctx.log(f"already present: {spec['source_file']}")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        key = os.path.join(tmp, "key")
+        ctx.fetch(spec["key_url"], key)
+        _verify(key, spec["key_sha256"], spec["key_url"])  # nothing privileged before this passes
+        final = key
+        if spec.get("dearmor"):
+            final = os.path.join(tmp, "key.gpg")
+            _check(ctx, ["gpg", "--dearmor", "--yes", "-o", final, key])
+        src = os.path.join(tmp, "source")
+        with open(src, "w", encoding="utf-8") as f:
+            f.write(spec["source"] + "\n")
+        _check(ctx, [*ctx.sudo, "install", "-Dm644", final, spec["key_dest"]])
+        _check(ctx, [*ctx.sudo, "install", "-Dm644", src, spec["source_file"]])
+        _check(ctx, [*ctx.sudo, "apt-get", "update"])
+
+
+def _dnf_copr(spec: dict, ctx: Ctx) -> None:
+    _check(ctx, [*ctx.sudo, "dnf", "copr", "enable", "-y", spec["name"]])
+
+
+KINDS = {"release-binary": _release_binary, "fonts": _fonts, "git-clone": _git_clone,
+         "apt-repo": _apt_repo, "dnf-copr": _dnf_copr}
 
 
 def run_recipe(spec: dict, ctx: Ctx) -> None:
@@ -198,3 +223,18 @@ def describe(spec: dict, home: str) -> list[str]:
     if kind == "dnf-copr":
         return [f"dnf copr enable -y {spec['name']}"]
     raise RecipeError(f"unknown recipe kind {kind!r}")
+
+
+def describe_step(step, home: str) -> list[str]:
+    """What a plan step will run, as text (the plan screen shows this verbatim)."""
+    if step.kind == "packages":
+        return [("sudo " if step.sudo else "") + " ".join(c) for c in step.commands]
+    return describe(step.recipe, home)
+
+
+def execute(step, ctx: Ctx) -> None:
+    if step.kind == "packages":
+        for cmd in step.commands:
+            _check(ctx, [*ctx.sudo, *cmd] if step.sudo else cmd)
+    else:
+        run_recipe(step.recipe, ctx)
