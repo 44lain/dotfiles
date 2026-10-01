@@ -34,15 +34,16 @@ family() {
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # the terminal: under `curl | sh` stdin is this script, so ask the user through the tty
-[ -r "$TTY" ] || die "no terminal available to talk to you (run it from a terminal)"
+( : < "$TTY" ) 2>/dev/null || die "no terminal available to talk to you (run it from a terminal)"
 
 # --- python: present AND new enough (never installed/upgraded to a newer one) -----
-if have python3; then
+check_python() {
 	python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' \
 		|| die "python3 is older than 3.11 (the installer needs 3.11 or newer). Install a newer Python from your distribution and run this again."
 	python3 -c 'import curses, tomllib' 2>/dev/null \
 		|| die "this python3 lacks the 'curses' or 'tomllib' module; install your distribution's full python3 package and run this again."
-fi
+}
+if have python3; then check_python; fi
 
 fam=$(family)
 missing=""
@@ -66,7 +67,7 @@ fi
 if [ -n "$missing" ] || [ "$need_chezmoi" -eq 1 ]; then
 	say "To open the guided installer I first need:"
 	[ -z "$missing" ] || say "  - system packages, with:  $pm$missing"
-	[ "$need_chezmoi" -eq 0 ] || say "  - chezmoi, with:  sh -c \"\$(curl -fsLS get.chezmoi.io)\" -- -b ~/.local/bin"
+	[ "$need_chezmoi" -eq 0 ] || say "  - chezmoi: this downloads and runs a script from get.chezmoi.io, with:  sh -c \"\$(curl -fsLS get.chezmoi.io)\" -- -b ~/.local/bin"
 	printf 'Install these now? [y/N] '
 	read -r reply < "$TTY" || reply=""
 	case $reply in y|Y|yes|YES|s|S|sim) ;; *) die "nothing installed; install them yourself and run this again." ;; esac
@@ -79,10 +80,16 @@ if [ -n "$missing" ] || [ "$need_chezmoi" -eq 1 ]; then
 		PATH="$HOME/.local/bin:$PATH"
 		export PATH
 	fi
+	# python3 may have just been installed by the package manager: it must pass the same check
+	check_python
 fi
 
 # --- the repo in chezmoi's source directory ---------------------------------------
 if [ ! -d "$SRC/.git" ]; then
+	for f in "$SRC"/* "$SRC"/.[!.]*; do
+		[ -e "$f" ] || continue
+		die "$SRC exists, is not empty and is not a git checkout; move it away (or set CHEZMOI_SOURCE_DIR) and run this again."
+	done
 	git clone "$REPO_URL" "$SRC"
 fi
 

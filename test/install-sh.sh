@@ -82,4 +82,59 @@ if [ $rc -ne 0 ] && printf '%s' "$out" | grep -qi 'terminal'; then
 else
 	flunk "install.sh no terminal (rc=$rc out=<$out>)"
 fi
+# 6. /dev/tty readable but unopenable (no controlling terminal): clear error up front
+fake python3 0; fake git 0
+if [ -x /usr/bin/setsid ]; then
+	out=$(setsid -w /usr/bin/env -i HOME="$home" PATH="$base_path" RICE_TTY=/dev/tty RICE_OS_RELEASE="$sandbox/os-release" /bin/sh "$repo/install.sh" 2>&1 </dev/null); rc=$?
+	if [ $rc -ne 0 ] && printf '%s' "$out" | grep -qi 'no terminal' && ! printf '%s' "$out" | grep -qiE 'Endere|No such device'; then
+		pass "install.sh: /dev/tty present but no controlling terminal -> clear error"
+	else
+		flunk "install.sh no controlling terminal (rc=$rc out=<$out>)"
+	fi
+else
+	printf '  skip install.sh no-controlling-terminal test: setsid not installed\n'
+fi
+
+# 7. python3 installed by the script itself but too old: stops with the 3.11 message, no TUI
+rm "$sandbox/bin/python3"; : > "$log"
+cat > "$sandbox/bin/sudo" <<FAKE
+#!/bin/sh
+echo "sudo \$*" >> "$log"
+printf '#!/bin/sh\nexit 1\n' > "$sandbox/bin/python3"; /bin/chmod +x "$sandbox/bin/python3"
+exit 0
+FAKE
+out=$(run "y
+"); rc=$?
+if [ $rc -eq 1 ] && printf '%s' "$out" | grep -q '3.11' && ! grep -q '^python3 -m installer' "$log" && grep -q '^sudo dnf install -y .*python3' "$log"; then
+	pass "install.sh: python3 installed by us is too old -> 3.11 message, TUI never started"
+else
+	flunk "install.sh re-check after install (rc=$rc out=<$out> log=<$(cat "$log")>)"
+fi
+fake python3 0; fake sudo 0
+
+# 8. source dir: non-empty without .git -> clear error; empty -> cloned into
+nogit="$sandbox/nogit"; mkdir -p "$nogit"; : > "$nogit/stray"; : > "$log"
+out=$(CHEZMOI_SOURCE_DIR="$nogit" run ""); rc=$?
+if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q "$nogit" && ! grep -q '^git clone' "$log"; then
+	pass "install.sh: non-empty source dir without .git -> clear error naming it"
+else
+	flunk "install.sh non-empty source dir (rc=$rc out=<$out>)"
+fi
+emptydir="$sandbox/emptydir"; mkdir -p "$emptydir"; : > "$log"
+out=$(CHEZMOI_SOURCE_DIR="$emptydir" run ""); rc=$?
+if [ $rc -eq 0 ] && grep -q '^git clone' "$log"; then
+	pass "install.sh: empty source dir -> cloned into"
+else
+	flunk "install.sh empty source dir (rc=$rc out=<$out>)"
+fi
+
+# 9. chezmoi prompt explains in plain words that it runs a downloaded script
+rm "$sandbox/bin/chezmoi"
+out=$(run "n
+"); rc=$?
+if printf '%s' "$out" | grep -q 'get.chezmoi.io' && printf '%s' "$out" | grep -qi 'downloads and runs a script'; then
+	pass "install.sh: chezmoi prompt says it downloads and runs a script"
+else
+	flunk "install.sh chezmoi wording (rc=$rc out=<$out>)"
+fi
 exit $fail
