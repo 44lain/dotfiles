@@ -243,4 +243,36 @@ else
 	flunk "onboard flags: unknown argument (rc=$rc out=<$out>)"
 fi
 
+# --- F3b. nothing was created by the rejected invocations -------------------------------
+if [ ! -e "$sandbox/home/.config" ]; then
+	pass "onboard flags: rejected invocations changed nothing"
+else
+	flunk "onboard flags: rejected invocation created ~/.config"
+fi
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --host </dev/null 2>&1); rc=$?
+if [ $rc -eq 2 ] && printf '%s' "$out" | grep -q "needs a value"; then
+	pass "onboard flags: trailing flag without value -> exit 2"
+else
+	flunk "onboard flags: missing value (rc=$rc out=<$out>)"
+fi
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --bashrc-loader maybe </dev/null 2>&1); rc=$?
+if [ $rc -eq 2 ] && printf '%s' "$out" | grep -q "yes or no"; then
+	pass "onboard flags: --bashrc-loader maybe -> exit 2"
+else
+	flunk "onboard flags: bad loader value (rc=$rc out=<$out>)"
+fi
+
+# --- F4. wallpaper path with sed/TOML-special characters round-trips exactly ------------
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
+wp='/pics/a|b&c\d"e.png'
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile guest --host h4 --git-name A --git-email a@b.co \
+	--wallpaper-path "$wp" --accept-detected --bashrc-loader no </dev/null 2>&1); rc=$?
+got=$(python3 -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb"))["data"]["wallpaper_path"],end="")' \
+	"$sandbox/home/.config/chezmoi/chezmoi.toml" 2>&1)
+if [ $rc -eq 0 ] && [ "$got" = "$wp" ]; then
+	pass "onboard flags: wallpaper path with | & \\ \" is written as valid TOML, unchanged"
+else
+	flunk "onboard flags: wallpaper special chars (rc=$rc got=<$got> out=<$out>)"
+fi
+
 exit $fail

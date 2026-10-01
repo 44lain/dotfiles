@@ -24,6 +24,13 @@ remove_loader() {
 	# ever removed; a loader the user wrote by hand has no marker and is left alone.
 	[ -f "$loader_marker" ] || return 0
 	grep -q '^# >>> rice bashrc.d loader >>>$' "$HOME/.bashrc" 2>/dev/null || { rm -f -- "$loader_marker"; return 0; }
+	# Both markers, start before end, or ~/.bashrc is not touched at all (a lone
+	# start marker would make the range delete run to the end of the file).
+	if ! awk '/^# >>> rice bashrc.d loader >>>$/ && !s {s=1; next} s && /^# <<< rice bashrc.d loader <<<$/ {e=1} END {exit !e}' "$HOME/.bashrc"; then
+		# shellcheck disable=SC2088  # literal ~ in a message
+		echo "  WARN the rice loader markers in ~/.bashrc are incomplete; remove the block by hand (state file kept)" >&2
+		return 0
+	fi
 	local remove=0 reply
 	if [ "$yes" -eq 1 ]; then
 		remove=1
@@ -33,7 +40,7 @@ remove_loader() {
 		case $reply in y|Y|yes|YES) remove=1 ;; esac
 	fi
 	if [ "$remove" -eq 1 ]; then
-		sed -i '/^# >>> rice bashrc.d loader >>>$/,/^# <<< rice bashrc.d loader <<<$/d' "$HOME/.bashrc"
+		sed -i --follow-symlinks '/^# >>> rice bashrc.d loader >>>$/,/^# <<< rice bashrc.d loader <<<$/d' "$HOME/.bashrc"
 		rm -f -- "$loader_marker"
 		echo "  removed the ~/.bashrc.d loader from ~/.bashrc"
 	fi

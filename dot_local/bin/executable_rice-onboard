@@ -160,6 +160,11 @@ is_known_host() {
 
 chezmoi_config=$HOME/.config/chezmoi/chezmoi.toml
 
+toml_escape() {  # value for a TOML basic string: escape \ and "
+	local v=${1//\\/\\\\}
+	printf '%s' "${v//\"/\\\"}"
+}
+
 # --- 2. init ---------------------------------------------------------------
 if [ ! -f "$chezmoi_config" ]; then
 	src_dir=$(chezmoi source-path 2>/dev/null || true)
@@ -210,7 +215,10 @@ else
 	wallpaper=""
 fi
 if [ -n "$wallpaper" ]; then
-	sed -i "s|^\([[:space:]]*\)wallpaper_path = .*|\1wallpaper_path = \"$wallpaper\"|" "$chezmoi_config"
+	# awk with ENVIRON: no sed replacement syntax, so | & \ in the value are inert.
+	wp_toml=$(toml_escape "$wallpaper")
+	WP_TOML=$wp_toml awk '/^[[:space:]]*wallpaper_path = / { match($0, /^[[:space:]]*/); print substr($0, 1, RLENGTH) "wallpaper_path = \"" ENVIRON["WP_TOML"] "\""; next } { print }' \
+		"$chezmoi_config" > "$chezmoi_config.tmp" && cat "$chezmoi_config.tmp" > "$chezmoi_config" && rm -f "$chezmoi_config.tmp"
 	echo "wallpaper path set: $wallpaper (-> $chezmoi_config)"
 fi
 
@@ -275,6 +283,7 @@ if [ "$is_new" -eq 1 ]; then
 			monitors_toml='  { output = "", mode = "preferred", position = "auto", scale = 1 },'
 		fi
 	fi
+	kb_layout=$(toml_escape "$kb_layout")
 	gpu_env_toml=$(gpu_env_for "$gpu")
 
 	# --- 7. write --------------------------------------------------------

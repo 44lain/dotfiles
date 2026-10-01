@@ -53,4 +53,63 @@ if [ "$(cat "$HOME/.bashrc")" = "$before" ]; then
 else
 	flunk "uninstall touched a loader it did not add"
 fi
+# --- incomplete markers: never touch ~/.bashrc, keep the state file, warn -------------
+for mode in "" --yes; do
+	printf '# stock\n# >>> rice bashrc.d loader >>>\nif x; then :; fi\nalias mine=1\n' > "$HOME/.bashrc"
+	: > "$XDG_STATE_HOME/rice/bashrc-loader"
+	before=$(cat "$HOME/.bashrc")
+	# shellcheck disable=SC2086
+	out=$(printf 'y\n' | bash "$uninstall" $mode 2>&1)
+	if [ "$(cat "$HOME/.bashrc")" = "$before" ] && [ -e "$XDG_STATE_HOME/rice/bashrc-loader" ] \
+		&& printf '%s' "$out" | grep -q 'markers in ~/.bashrc are incomplete'; then
+		pass "uninstall: start marker without end marker -> untouched, warned (${mode:-ask})"
+	else
+		flunk "uninstall: incomplete markers mishandled (${mode:-ask}) out=<$out>"
+	fi
+done
+
+# end marker before start marker is also incomplete
+printf '# <<< rice bashrc.d loader <<<\nalias mine=1\n# >>> rice bashrc.d loader >>>\n' > "$HOME/.bashrc"
+: > "$XDG_STATE_HOME/rice/bashrc-loader"
+before=$(cat "$HOME/.bashrc")
+bash "$uninstall" --yes >/dev/null 2>&1
+if [ "$(cat "$HOME/.bashrc")" = "$before" ] && [ -e "$XDG_STATE_HOME/rice/bashrc-loader" ]; then
+	pass "uninstall: reversed markers -> untouched"
+else
+	flunk "uninstall: reversed markers mishandled"
+fi
+
+# --- user lines before and after the block survive -----------------------------------
+block
+printf 'export A=1\n' >> "$HOME/.bashrc"
+bash "$uninstall" --yes >/dev/null 2>&1
+if [ "$(cat "$HOME/.bashrc")" = "$(printf '# stock bashrc\n\nalias keep=1\nexport A=1')" ]; then
+	pass "uninstall: only the marked block is removed"
+else
+	flunk "uninstall: surrounding lines altered: <$(cat "$HOME/.bashrc")>"
+fi
+
+# --- early-exit path (no baseline) removes a marked loader, state file deleted --------
+block
+rm -rf "$XDG_STATE_HOME/rice/baseline"
+out=$(bash "$uninstall" --yes 2>&1)
+if printf '%s' "$out" | grep -q 'nothing to uninstall' && ! grep -q 'rice bashrc.d loader' "$HOME/.bashrc" \
+	&& [ ! -e "$XDG_STATE_HOME/rice/bashrc-loader" ]; then
+	pass "uninstall: 'nothing to uninstall' path still removes the marked loader"
+else
+	flunk "uninstall: early-exit path (out=<$out>)"
+fi
+
+# --- a symlinked ~/.bashrc stays a symlink ------------------------------------------
+block
+mv "$HOME/.bashrc" "$HOME/real-bashrc"
+ln -s real-bashrc "$HOME/.bashrc"
+: > "$XDG_STATE_HOME/rice/bashrc-loader"
+bash "$uninstall" --yes >/dev/null 2>&1
+if [ -L "$HOME/.bashrc" ] && ! grep -q 'rice bashrc.d loader' "$HOME/real-bashrc" && grep -q '^alias keep=1$' "$HOME/real-bashrc"; then
+	pass "uninstall: symlinked ~/.bashrc stays a symlink, target edited"
+else
+	flunk "uninstall: symlinked ~/.bashrc replaced"
+fi
+rm -f "$HOME/.bashrc" "$HOME/real-bashrc"
 exit $fail
