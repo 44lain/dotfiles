@@ -92,6 +92,7 @@ MESSAGES = {
     "plan.sim_failed_warn": "The dry run reported a problem above. You can still continue, but the install will probably fail.",
     "plan.summary": "{n} step(s) planned. The list above scrolls; read it before you confirm.",
     "plan.no_revert": "Installed packages are NOT removed by rice rollback or rice uninstall. Applied configuration can be reverted with rice rollback.",
+    "plan.required_unticked": "You unticked required item(s): {items}. The setup needs them later and will stop at the Configure step without them. You can go back and tick them.",
     "plan.nothing_selected": "Nothing selected; skipping the install.",
     "plan.confirm": "Run this plan now?",
     # screen 6
@@ -113,6 +114,8 @@ MESSAGES = {
     # screen 7
     "configure.title": "Configure",
     "configure.explain": "Now the configuration is applied: the rice commands, your machine's settings and the files from this repo.",
+    "configure.prereq_missing": "Required tool(s) missing: {tools}. The configuration cannot start without them, so nothing was run. Going back to the scan, which will offer them again.",
+    "configure.prereq_install": "Install with: {cmd}",
     "configure.loader": "Your ~/.bashrc does not load ~/.bashrc.d (where the rice's PATH lives). Add the loader?",
     "configure.go": "Apply the configuration now? You will see the exact changes and confirm once more.",
     "configure.init": "Creating the chezmoi configuration…",

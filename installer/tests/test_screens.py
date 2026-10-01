@@ -227,6 +227,38 @@ class Plan(Base):
         self.assertIn("sudo apt-get install -y rofi", " ".join(ui.table_lines()))
         self.assertIn("NOT removed", ui.text_of("warn"))
 
+    APT = {f"{c} {n}": cp(0, o) for n in ("rofi", "kitty") for c, o in (
+        ("apt-cache madison", f" {n} | 1.7 | https://x stable/main amd64 Packages\n"),
+        ("apt-cache policy", "Candidate: 1.7\n"),
+        ("apt-get -s install", f"Inst {n}\n"))}
+
+    def with_both_missing(self):
+        env = make_env(home=self.home, which=set(), outputs=self.APT)
+        s = self.state(env=env)
+        s.statuses = model.scan(model.load_packages(s.repo / ".chezmoidata/packages.toml"), s.family, env)
+        return s
+
+    def test_unticking_a_required_item_warns_naming_it_and_the_flow_continues(self):
+        asked = []
+
+        class Ask(FakeUI):
+            def confirm(self, prompt, default=False):
+                asked.append(default)
+                return super().confirm(prompt, default)
+        ui = Ask(["rofi"], "next", True)  # kitty is required and was unticked
+        self.assertEqual(screens.plan_screen(ui, self.with_both_missing()), "next")
+        self.assertIn("kitty", ui.text_of("warn"))
+        self.assertEqual(asked, [False])  # the confirmation is still default NO
+        ui = FakeUI([])  # everything unticked: warns too, then moves on
+        s = self.with_both_missing()
+        self.assertEqual(screens.plan_screen(ui, s), screens.IDX["configure"])
+        self.assertIn("kitty", ui.text_of("warn"))
+
+    def test_ticking_the_required_item_shows_no_required_warning(self):
+        ui = FakeUI(["kitty", "rofi"], "next", True)
+        screens.plan_screen(ui, self.with_both_missing())
+        self.assertNotIn("unticked", ui.text_of("warn"))
+
     def test_the_whole_plan_is_scrollable_rows_shown_before_the_confirmation(self):
         # at 80x24 messages are cut to the last rows: the plan must be table rows
         ui = FakeUI(["rofi"], "next", True)
@@ -377,12 +409,36 @@ class Install(Base):
 
 
 class Configure(Base):
+    def state(self, env=None, **kw):  # the hard prerequisites are present unless a test says otherwise
+        return super().state(env=env or make_env(home=self.home, which={"chezmoi", "git", "jq"}), **kw)
+
     def ready(self, **kw):
         s = self.state()
         s.profile, s.host, s.host_is_new = "guest", "parrot", True
         s.git_name, s.git_email = "Ana", "ana@example.com"
         s.wall_dir, s.wall_image = kw.get("wall_dir", ""), kw.get("wall_image", "")
         return s
+
+    def test_missing_prerequisite_stops_before_running_anything_and_rescans(self):
+        s = self.state(env=make_env(home=self.home, which={"chezmoi", "git"}))  # jq missing
+        s.profile, s.host, s.git_name, s.git_email = "guest", "parrot", "Ana", "ana@example.com"
+        ui = FakeUI(True, True)
+        self.assertEqual(screens.configure_screen(ui, s), screens.IDX["scan"])
+        self.assertEqual(self.calls, [])
+        self.assertEqual(ui.suspended, [])
+        errs = ui.text_of("error")
+        self.assertIn("jq", errs)
+        self.assertNotIn("git", errs)
+        self.assertIn("sudo apt-get install -y jq", errs)
+        self.assertEqual(ui.asked, [])
+
+    def test_missing_chezmoi_names_it_with_the_installer_one_liner(self):
+        s = self.state(env=make_env(home=self.home, which={"git", "jq"}), family="fedora")
+        ui = FakeUI(True, True)
+        self.assertEqual(screens.configure_screen(ui, s), screens.IDX["scan"])
+        self.assertIn("chezmoi", ui.text_of("error"))
+        self.assertIn("get.chezmoi.io", ui.text_of("error"))
+        self.assertEqual(self.calls, [])
 
     def test_runs_init_bin_then_onboard_with_flags(self):
         Path(self.home, ".bashrc").write_text("# stock\n")
@@ -545,7 +601,7 @@ class Flow(Base):
         self.assertIn("Stopped", ui.text_of("warn"))
 
     def test_declining_configure_when_nothing_is_missing_ends_in_preferences(self):
-        env = make_env(home=self.home, which={"kitty", "rofi"})
+        env = make_env(home=self.home, which={"kitty", "rofi", "chezmoi", "git", "jq"})
         # welcome, profile, host name, git name, e-mail, wallpaper dir, image, configure? no
         ui = FakeUI("go", "guest", "box", "Ana", "ana@example.com", "", "skip", False)
         self.assertEqual(screens.run_flow(ui, self.state(env=env)), 1)

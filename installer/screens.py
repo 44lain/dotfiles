@@ -207,7 +207,10 @@ def plan_screen(ui, s):
     picked = ui.checklist(t("plan.pick"), items)
     if picked is BACK or picked is CANCEL:
         return _nav(picked)
+    dropped = [a.key for a in act if a.required and a.key not in picked]
     if not picked:
+        if dropped:
+            ui.warn(t("plan.required_unticked", items=", ".join(dropped)))
         ui.info(t("plan.nothing_selected"))
         return IDX["configure"]
     plan = model.build_plan(s.statuses, set(picked), s.family)
@@ -236,6 +239,8 @@ def plan_screen(ui, s):
     if timed_out:
         ui.warn(t("plan.sim_timeout"))
     ui.warn(t("plan.no_revert"))
+    if dropped:
+        ui.warn(t("plan.required_unticked", items=", ".join(dropped)))
     c = ui.confirm(t("plan.confirm"), default=False)
     if c is CANCEL:
         return "cancel"
@@ -328,9 +333,33 @@ def _pin_profile_host(cfg, profile, host):
         f.write(text)
 
 
+PREREQS = ("chezmoi", "git", "jq")  # what the configure step runs: rice-onboard hard-requires them
+CHEZMOI_ONELINER = 'sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin'
+
+
+def _prereq_install_lines(s, missing):
+    """Exact commands that install `missing` for the detected family."""
+    lines = []
+    pkgs = [m for m in missing if m != "chezmoi"]
+    if pkgs:
+        try:
+            lines.append(" ".join((["sudo"] if s.ctx.sudo else []) + model._install_cmd(s.family, "", pkgs)))
+        except ValueError:
+            lines.append(" ".join(pkgs))
+    if "chezmoi" in missing:
+        lines.append(CHEZMOI_ONELINER)
+    return lines
+
+
 def configure_screen(ui, s):
     t = s.t
     ui.title(7, TOTAL, t("configure.title"))
+    missing = [b for b in PREREQS if not s.env.which(b)]
+    if missing:
+        ui.error(t("configure.prereq_missing", tools=", ".join(missing)))
+        for line in _prereq_install_lines(s, missing):
+            ui.error(t("configure.prereq_install", cmd=line))
+        return IDX["scan"]
     ui.info(t("configure.explain"))
     bashrc = os.path.join(s.home, ".bashrc")
     loader = "no"
