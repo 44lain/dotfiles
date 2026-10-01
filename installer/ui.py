@@ -228,7 +228,7 @@ class CursesUI:
             enc = (locale.getpreferredencoding(False) or "").upper().replace("-", "")
             utf8 = enc == "UTF8"
             self.f = FRAME_UTF8 if utf8 else FRAME_ASCII
-            self.marks = ("✓", "!", "✗", "·") if utf8 else ("+", "!", "x", "-")
+            self.marks = ("✓", "!", "✗", "·", "↑", "↓") if utf8 else ("+", "!", "x", "-", "^", "v")
             self.step = (0, 0, "")
             self.lines = []  # (text, attr-name)
         except BaseException:
@@ -273,10 +273,27 @@ class CursesUI:
                 return o if o < 32 or o == 127 else k
             return k
 
-    def _draw(self, body, hint):
-        """body: list of (text, attr-name, bold?). Shows a resize notice if too small."""
+    def _sync_size(self):
+        """Without reading keys curses never learns about a resize; ask the tty."""
+        try:
+            size = os.get_terminal_size(1)
+            if self.curses.is_term_resized(size.lines, size.columns):
+                self.curses.resizeterm(size.lines, size.columns)
+        except (OSError, ValueError, AttributeError, self.curses.error):
+            pass
+
+    def _draw(self, body, hint, block=True, focus=None, pinned=0, scroll=None):
+        """body: list of (text, attr-name, bold?). On a too-small window shows the
+        resize notice; with block=True it then waits for a key or resize, with
+        block=False it returns at once (for progress, which must never stall).
+        Overflowing bodies show their tail, unless the first `pinned` entries are
+        to stay put and the rest scrolls: `focus` (body index) keeps that entry
+        visible, `scroll` is an explicit first visible row. Returns (first
+        visible row of the scrollable part, its page size)."""
         c = self.curses
         while True:
+            if not block:
+                self._sync_size()
             h, w = self.scr.getmaxyx()
             if (h >= MIN_H and w >= MIN_W) or self._eof:
                 break
@@ -286,6 +303,8 @@ class CursesUI:
                 self.scr.refresh()
             except c.error:
                 pass
+            if not block:
+                return (0, 0)
             self._key()  # any key (or KEY_RESIZE) re-checks the size
         self.scr.erase()
         f = self.f
@@ -302,17 +321,39 @@ class CursesUI:
         self._put(h - 1, 0, f["bl"] + f["h"] * (w - 2))
         self._put(h - 1, w - 1, f["br"])
         rows = []
-        for text, name, bold in body:
+        for n, (text, name, bold) in enumerate(body):
             for part in self._fit(text, w - 6):
-                rows.append((part, name, bold))
+                rows.append((part, name, bold, n))
         room = max(h - 4, 1)
-        for i, (part, name, bold) in enumerate(rows[-room:]):
+        start, page = 0, room
+        if focus is None and scroll is None:
+            shown = rows[-room:]
+        else:
+            head = [r for r in rows if r[3] < pinned][-max(room - 3, 1):]
+            rest = [r for r in rows if r[3] >= pinned]
+            page = max(room - len(head), 1)
+            window = rest[:page]
+            if len(rest) > page:
+                last = len(rest) - page
+                if scroll is not None:
+                    start = min(max(scroll, 0), last)
+                else:
+                    f = next((i for i, r in enumerate(rest) if r[3] == focus), 0)
+                    start = min(max(f - page // 2, 0), last)
+                window = rest[start:start + page]
+                if start > 0:
+                    window[0] = (self.marks[4] + " ...", "dim", False, -1)
+                if start + page < len(rest):
+                    window[-1] = (self.marks[5] + " ...", "dim", False, -1)
+            shown = head + window
+        for i, (part, name, bold, _n) in enumerate(shown):
             self._put(1 + i, 2, part, self._attr(name) | (c.A_BOLD if bold else 0))
         self._put(h - 2, 2, hint[: max(w - 4, 0)], self._attr("dim"))
         try:
             self.scr.refresh()
         except c.error:
             pass
+        return (start, page)
 
     def _msgs(self):
         return [(t, n, False) for t, n in self.lines]
@@ -339,10 +380,24 @@ class CursesUI:
         fmt = lambda r: "  ".join(str(c).ljust(wd) for c, wd in zip(r, widths))
         body = self._msgs() + [(fmt(header), "accent", True)] + [(fmt(r), None, False) for r in rows]
         c = self.curses
+        pinned = len(self._msgs()) + 1  # messages and the header stay put
+        top, page = 0, 1
         while True:
-            self._draw(body, self.t("hint.table"))
+            top, page = self._draw(body, self.t("hint.table"), pinned=pinned, scroll=top)
             k = self._key()
-            if k in (10, 13, c.KEY_ENTER, c.KEY_RIGHT):
+            if k in (c.KEY_UP, "k"):
+                top -= 1
+            elif k in (c.KEY_DOWN, "j"):
+                top += 1
+            elif k == c.KEY_PPAGE:
+                top -= max(page - 1, 1)
+            elif k == c.KEY_NPAGE:
+                top += max(page - 1, 1)
+            elif k == c.KEY_HOME:
+                top = 0
+            elif k == c.KEY_END:
+                top = 10 ** 9
+            elif k in (10, 13, c.KEY_ENTER, c.KEY_RIGHT):
                 return "next"
             if k == c.KEY_LEFT:
                 return BACK
@@ -361,7 +416,7 @@ class CursesUI:
             tick[0] += 1
             body = self._msgs() + [(f"{SPINNER[tick[0] % 4]} {label}", "accent", True)]
             body += [("   " + ln, "dim", False) for ln in buf]
-            self._draw(body, self.t("hint.wait"))
+            self._draw(body, self.t("hint.wait"), block=False)
 
         push()
         yield push
@@ -402,12 +457,15 @@ class CursesUI:
     # -- input
     def menu(self, prompt, options, default=0):
         c = self.curses
-        idx = default
+        if not options:
+            return CANCEL
+        idx = min(max(default, 0), len(options) - 1)
         while True:
             body = self._msgs() + [(prompt, None, True)]
+            pinned = len(body)
             for i, (_k, label) in enumerate(options):
                 body.append((("> " if i == idx else "  ") + label, "accent" if i == idx else None, i == idx))
-            self._draw(body, self.t("hint.menu"))
+            self._draw(body, self.t("hint.menu"), focus=pinned + idx, pinned=pinned)
             k = self._key()
             if k in (c.KEY_UP, "k"):
                 idx = (idx - 1) % len(options)
@@ -422,14 +480,17 @@ class CursesUI:
 
     def checklist(self, prompt, items):
         c = self.curses
+        if not items:
+            return []
         state = {i.key: i.checked for i in items}
         idx = 0
         while True:
             body = self._msgs() + [(prompt, None, True)]
+            pinned = len(body)
             for n, i in enumerate(items):
                 mark = "[x]" if state[i.key] else "[ ]"
                 body.append((f"{'>' if n == idx else ' '} {mark} {i.label}", "accent" if n == idx else None, n == idx))
-            self._draw(body, self.t("hint.checklist"))
+            self._draw(body, self.t("hint.checklist"), focus=pinned + idx, pinned=pinned)
             k = self._key()
             if k in (c.KEY_UP, "k"):
                 idx = (idx - 1) % len(items)
