@@ -206,3 +206,110 @@ def scan(packages: list[Package], family: str, env: Env) -> list[Status]:
 
 def actionable(statuses: list[Status]) -> list[Status]:
     return [s for s in statuses if s.state in ("missing", "too_old") and s.source]
+
+
+@dataclass
+class Step:
+    id: str
+    kind: str                 # repo | packages | recipe
+    title_key: str
+    title_args: dict
+    commands: list            # argv lists WITHOUT sudo (the runner adds it when sudo=True)
+    items: list               # package keys this step serves
+    sudo: bool
+    recipe: dict | None
+    names: list
+    flag: str
+    sim_names: list           # names that can be simulated now (no repo needed first)
+
+
+def _install_cmd(family: str, flag: str, names: list) -> list:
+    f = flag.split() if flag else []
+    if family == "fedora":
+        return ["dnf", "install", "-y", *names]
+    if family == "debian":
+        return ["apt-get", "install", "-y", *f, *names]
+    if family == "arch":
+        return ["pacman", "-S", "--needed", "--noconfirm", *names]
+    raise ValueError(f"no package manager for family {family!r}")
+
+
+def build_plan(statuses: list[Status], selected, family: str) -> list[Step]:
+    chosen = [s for s in statuses if s.key in selected and s.source]
+    steps: list[Step] = []
+    seen = set()
+    for s in chosen:  # 1. repositories
+        if s.repo and s.recipe:
+            ident = (s.recipe["kind"], s.recipe.get("name") or s.recipe.get("source_file"))
+            if ident in seen:
+                continue
+            seen.add(ident)
+            steps.append(Step(id=f"repo:{ident[1]}", kind="repo", title_key="step.repo",
+                              title_args={"name": ident[1]}, commands=[], items=[s.key],
+                              sudo=True, recipe=s.recipe, names=[], flag="", sim_names=[]))
+    groups: dict = {}
+    for s in chosen:  # 2. distro packages, fewest commands: required first, one per suite flag
+        if s.source == "distro":
+            groups.setdefault((not s.required, s.flag), []).append(s)
+    for (optional, flag), items in sorted(groups.items()):
+        names = list(dict.fromkeys(i.name for i in items))
+        steps.append(Step(
+            id="pkgs:" + (flag or "default") + (":opt" if optional else ""), kind="packages",
+            title_key="step.packages",
+            title_args={"n": len(names), "suite": f" ({flag})" if flag else ""},
+            commands=[_install_cmd(family, flag, names)], items=[i.key for i in items], sudo=True,
+            recipe=None, names=names, flag=flag,
+            sim_names=[i.name for i in items if not i.repo]))
+    for s in chosen:  # 3. standalone recipes
+        if s.source == "recipe":
+            steps.append(Step(id=f"recipe:{s.key}", kind="recipe", title_key="step.recipe",
+                              title_args={"desc": s.desc}, commands=[], items=[s.key], sudo=False,
+                              recipe=s.recipe, names=[], flag="", sim_names=[]))
+    return steps
+
+
+def _tail(text: str, n: int = 6) -> str:
+    return "\n".join(text.strip().splitlines()[-n:])
+
+
+def simulate(step: Step, family: str, env: Env):
+    """('ok'|'fail'|'skipped', output tail). Dry run of the distro package step."""
+    if step.kind != "packages" or not step.sim_names:
+        return ("skipped", "")
+    f = step.flag.split() if step.flag else []
+    if family == "debian":
+        argv = ["apt-get", "-s", "install", *f, *step.sim_names]
+    elif family == "fedora":
+        argv = ["dnf", "install", "--assumeno", *step.sim_names]
+    elif family == "arch":
+        argv = ["pacman", "-Sp", *step.sim_names]
+    else:
+        return ("skipped", "")
+    cp = env.run(argv)
+    out = (cp.stdout or "") + (cp.stderr or "")
+    if cp.returncode == 0 or (family == "fedora" and "abort" in out.lower()):
+        return ("ok", _tail(out))
+    return ("fail", _tail(out))
+
+
+def known_hosts(env: Env) -> list[str]:
+    cp = env.run(["chezmoi", "data", "--format=json"])
+    if cp.returncode != 0:
+        return []
+    try:
+        return sorted((json.loads(cp.stdout).get("hosts") or {}).keys())
+    except (ValueError, AttributeError):
+        return []
+
+
+def detect_summary(env: Env) -> dict:
+    kb = ""
+    for line in (env.run(["localectl", "status"]).stdout or "").splitlines():
+        if "X11 Layout:" in line:
+            kb = line.split(":", 1)[1].strip()
+    gpu = ""
+    for line in (env.run(["lspci"]).stdout or "").splitlines():
+        if re.search(r"vga|3d controller", line, re.I):
+            gpu = line.split(": ", 1)[-1].strip()
+            break
+    return {"kb": kb, "gpu": gpu}
