@@ -102,6 +102,12 @@ Recipe kinds — a small closed set, one function each in `recipes.py`:
 | `fonts` | Material Symbols Rounded, Rubik, CaskaydiaCove | list of `url` + `sha256`; installed to `~/.local/share/fonts/` then `fc-cache` |
 | `git-clone` | Grootshell fork | `url`, `branch`, `dest` |
 
+`apt-repo` and `dnf-copr` are **repository prerequisites**: they apply whenever the
+family matches, add the repository first, and the item is then installed through the
+normal distro-package step (name from the recipe's `package`, or the item's own family
+name). `release-binary`, `fonts` and `git-clone` are **fallbacks**: they apply only when
+the item has no package name for the family and the declared `arch` matches.
+
 Every recipe can **describe itself** as text and **run itself**. The plan screen
 shows the description, so the user sees the exact commands and sources.
 Download URLs are **pinned to a version with `sha256`**: a stale pin fails with

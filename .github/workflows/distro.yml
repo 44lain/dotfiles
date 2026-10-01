@@ -7,6 +7,8 @@ on:
   push:
     paths:
       - ".chezmoidata/packages.toml"
+      - "install.sh"
+      - "installer/**"
       - "test/distro/**"
       - "dot_local/bin/executable_rice-doctor"
       - "dot_local/bin/executable_rice-onboard"
@@ -15,6 +17,8 @@ on:
   pull_request:
     paths:
       - ".chezmoidata/packages.toml"
+      - "install.sh"
+      - "installer/**"
       - "test/distro/**"
       - "dot_local/bin/executable_rice-doctor"
       - "dot_local/bin/executable_rice-onboard"
@@ -38,3 +42,5 @@ jobs:
           sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin
       - name: Package names exist, guest install works, hyprland.lua loads
         run: make distro-check # CI=true is set by Actions: skipped images fail the job
+      - name: Pinned downloads still match their sha256
+        run: bash test/distro/pins.sh # stale pins are caught here, weekly, before a user hits them

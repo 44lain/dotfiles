@@ -71,3 +71,10 @@ class Translator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlaceholderNamedKey(unittest.TestCase):
+    def test_key_can_be_a_placeholder(self):
+        # regression: scan.no_source uses {key}, which used to collide with t's own argument
+        t = messages.translator("en")
+        self.assertIn("kitty: no source", t("scan.no_source", key="kitty", detail="no source", manual="-"))

@@ -15,7 +15,7 @@ def detect(env) -> str:
 def translator(lang):
     table = LANGS[normalize(lang)]
 
-    def t(key, **kw):
+    def t(key, /, **kw):
         text = table.get(key) or en.MESSAGES.get(key) or key
         return text.format(**kw) if kw else text
 

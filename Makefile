@@ -8,7 +8,7 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check test docs distro-check bashrc-hook cursor-extensions
+.PHONY: help check test docs distro-check pins-check bashrc-hook cursor-extensions
 
 help:
 	@echo "Targets:"
@@ -18,6 +18,7 @@ help:
 	@echo "  make test               run test/*.sh (needs chezmoi; luajit optional)"
 	@echo "  make docs               regenerate docs/dependencies.md from .chezmoidata/packages.toml"
 	@echo "  make distro-check       verify package names, a guest install and hyprland.lua in containers (docker, network)"
+	@echo "  make pins-check         check every pinned download in packages.toml still matches its sha256 (network)"
 	@echo ""
 	@echo "To apply the dotfiles themselves: chezmoi init, chezmoi diff, chezmoi apply,"
 	@echo "then 'rice apply' for any later change. See README.md."
@@ -64,4 +65,7 @@ docs:
 	@echo "wrote docs/dependencies.md"
 
 distro-check:
-	@bash test/distro/packages.sh && bash test/distro/guest-install.sh && bash test/distro/hyprland-verify.sh
+	@bash test/distro/packages.sh && bash test/distro/guest-install.sh && bash test/distro/hyprland-verify.sh && bash test/distro/installer-flow.sh
+
+pins-check:
+	@bash test/distro/pins.sh
