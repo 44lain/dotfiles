@@ -19,6 +19,7 @@ usage: rice <command>
   uninstall        undo every apply ever run here, back to before rice
   onboard          first-machine setup wizard
   doctor           health check
+  tui              guided installer (terminal UI)
 EOF
 }
 
@@ -42,10 +43,16 @@ case $cmd in
 		exit 1 ;;
 	doctor)
 		exec rice-doctor "$@" ;;
+	tui)
+		src=$(chezmoi source-path 2>/dev/null) || { echo "rice tui: 'chezmoi source-path' failed (is chezmoi initialised?)" >&2; exit 1; }
+		[ -f "$src/installer/__main__.py" ] || { echo "rice tui: installer not found in $src" >&2; exit 1; }
+		PYTHONPATH=$src exec python3 -m installer "$@" ;;
 	help|-h|--help)
 		usage
 		exit 0 ;;
 	"")
+		# an interactive terminal opens the guided installer; anything else keeps the old usage output
+		if [ -t 0 ] && [ -t 1 ]; then exec "$0" tui; fi
 		usage >&2
 		exit 2 ;;
 	*)

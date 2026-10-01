@@ -51,7 +51,7 @@ cursor-extensions:
 check:
 	@fail=0; \
 	if command -v shellcheck >/dev/null; then \
-		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh test/distro/*.sh bin/executable_*.sh dot_local/bin/* || fail=1; \
+		shellcheck --severity=style dot_bashrc.d/*.sh test/*.sh test/distro/*.sh bin/executable_*.sh dot_local/bin/* install.sh || fail=1; \
 	else echo "shellcheck not installed — skipped" >&2; fi; \
 	if command -v gitleaks >/dev/null; then \
 		gitleaks detect --source . --no-banner --redact || fail=1; \

@@ -40,7 +40,28 @@ cargo install matugen        # wallpaper -> colour palette; needs Rust/cargo (on
 git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
 ```
 
-## Apply
+## Guided install
+
+One command checks what your system is missing, installs it after you confirm, sets
+your preferences and verifies the result — from a fresh machine to a working rice:
+
+    curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh
+
+If you would rather read the script first:
+
+    git clone https://github.com/44lain/dotfiles ~/.local/share/chezmoi
+    ~/.local/share/chezmoi/install.sh
+
+It opens a terminal interface (English and Português). Nothing is installed without
+showing you the exact commands first and asking. Afterwards, `rice tui` opens it again
+(it re-scans, so only what is still missing is offered).
+
+**Leaving the rice.** Installing it only adds a Hyprland entry to your login screen; to go
+back to your previous desktop, log out and pick it in the session selector. Packages,
+repositories added, fonts and the Grootshell clone stay installed; `rice uninstall`
+restores the configuration files and removes the `~/.bashrc` loader, but not packages.
+
+## Manual install
 
 ```bash
 # Fedora
