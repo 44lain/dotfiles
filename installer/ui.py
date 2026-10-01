@@ -95,7 +95,7 @@ class PlainUI:
         except (FileNotFoundError, PermissionError):
             return 127
 
-    def close(self):
+    def close(self, wait=True):
         pass
 
     # -- input
@@ -372,7 +372,10 @@ class CursesUI:
         (or the exit): draw them and wait for a key first."""
         if self._unseen() and not self._eof:
             self._draw(self._msgs(), self.t("hint.table"))
-            self._key()
+            try:
+                self._key()
+            except KeyboardInterrupt:
+                pass  # Ctrl-C must never trap the user inside this wait
 
     # -- output
     def title(self, step, total, text):
@@ -462,13 +465,16 @@ class CursesUI:
             except c.error:
                 pass
 
-    def close(self):
-        """Idempotent: restores the terminal once, later calls do nothing."""
+    def close(self, wait=True):
+        """Idempotent: restores the terminal once, later calls do nothing.
+        wait=False (the Ctrl-C path) skips the "press a key" pause; the pending
+        messages are still printed to the scrollback."""
         if not self._open:
             return
         pending = self._unseen()
         try:
-            self._flush()
+            if wait:
+                self._flush()
         finally:
             self._open = False
             try:

@@ -69,8 +69,10 @@ class Main(unittest.TestCase):
 
         class FakeUI:
             closed = 0
-            def close(self):
+            waits = []
+            def close(self, wait=True):
                 FakeUI.closed += 1
+                FakeUI.waits.append(wait)
 
         def boom(ui, state):
             raise KeyboardInterrupt
@@ -82,6 +84,7 @@ class Main(unittest.TestCase):
             rc = cli.main(["--plain", "--lang", "en"], stdin=io.StringIO(""), env={}, home=tmp)
         self.assertEqual(rc, 130)
         self.assertEqual(FakeUI.closed, 1)
+        self.assertEqual(FakeUI.waits, [False])  # Ctrl-C must never wait for a key
         self.assertNotIn("Traceback", err.getvalue())
 
 

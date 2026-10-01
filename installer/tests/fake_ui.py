@@ -65,7 +65,7 @@ class FakeUI:
         self.suspended.append(list(argv))
         return self.suspend_rc
 
-    def close(self):
+    def close(self, wait=True):
         pass
 
     def table_lines(self, n=-1):

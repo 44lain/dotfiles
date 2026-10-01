@@ -110,6 +110,13 @@ class Output(unittest.TestCase):
         self.assertEqual(u.suspend(["/nonexistent_command_xyz"]), 127)
 
 
+class Close(unittest.TestCase):
+    def test_close_accepts_wait(self):
+        u, _ = plain("")
+        u.close()
+        u.close(wait=False)
+
+
 class MakeUi(unittest.TestCase):
     def test_plain_flag_and_non_tty_give_plain_ui(self):
         self.assertIsInstance(ui.make_ui(t, plain=True), ui.PlainUI)

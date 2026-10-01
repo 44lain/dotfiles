@@ -248,6 +248,39 @@ class Unit(unittest.TestCase):
         self.assertEqual(len(keys), 1)
         self.assertIn("Stopped.", u.scr.text())  # it was drawn before the wait
 
+    def test_close_with_wait_false_never_waits_but_still_prints(self):
+        import contextlib
+        import io
+        from unittest import mock
+        u = fake_ui(24, 80)
+        u._open = True
+        u._key = lambda: self.fail("must not wait")
+        u.info("Interrupted before the summary.")
+        out = io.StringIO()
+        with mock.patch.object(u.curses, "endwin") as endwin, contextlib.redirect_stdout(out):
+            u.close(wait=False)
+        self.assertIn("Interrupted before the summary.", out.getvalue())
+        endwin.assert_called_once()
+
+    def test_ctrl_c_while_close_waits_is_swallowed_and_the_terminal_is_restored(self):
+        import contextlib
+        import io
+        from unittest import mock
+        u = fake_ui(24, 80)
+        u._open = True
+
+        def interrupted():
+            raise KeyboardInterrupt
+
+        u._key = interrupted
+        u.info("Pending text.")
+        out = io.StringIO()
+        with mock.patch.object(u.curses, "endwin") as endwin, contextlib.redirect_stdout(out):
+            u.close()  # a second Ctrl-C during the wait must not escape
+            u.close()
+        self.assertIn("Pending text.", out.getvalue())
+        endwin.assert_called_once()
+
     def test_close_without_pending_messages_prints_and_waits_for_nothing(self):
         import contextlib
         import io

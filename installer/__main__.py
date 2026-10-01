@@ -54,7 +54,7 @@ def main(argv=None, stdin=None, env=None, home=None) -> int:
     except KeyboardInterrupt:
         interrupted = True
     finally:
-        interface.close()  # always restore the terminal
+        interface.close(wait=not interrupted)  # always restore the terminal; never wait after Ctrl-C
     if interrupted:
         print("\nrice tui: interrupted.", file=sys.stderr)
         return 130
