@@ -21,7 +21,7 @@ fake() {  # fake <name> <exit-code> [stdout]
 	printf '#!/bin/sh\necho "%s $*" >> "%s"\n%s\nexit %s\n' "$1" "$log" "${3:+echo \"$3\"}" "$2" > "$sandbox/bin/$1"
 	chmod +x "$sandbox/bin/$1"
 }
-fake git 0; fake curl 0; fake chezmoi 0; fake python3 0; fake sudo 0
+fake git 0; fake curl 0; fake jq 0; fake chezmoi 0; fake python3 0; fake sudo 0
 export HOME="$home" RICE_OS_RELEASE="$sandbox/os-release"
 # R5: the script runs with PATH=$sandbox/bin ONLY, so a real git/curl/python3 is never found
 base_path="$sandbox/bin"
@@ -186,6 +186,59 @@ else
 	flunk "install.sh foreign repo (rc=$rc out=<$out>)"
 fi
 fake git 0
+
+# 15. debian family: apt-get update runs BEFORE install, and the listing shown before the prompt has both
+printf 'ID=ubuntu\nID_LIKE=debian\n' > "$sandbox/os-release-deb"
+rm -f "$sandbox/bin/git"; : > "$log"
+cat > "$sandbox/bin/sudo" <<FAKE
+#!/bin/sh
+echo "sudo \$*" >> "$log"
+exit 0
+FAKE
+out=$(RICE_OS_RELEASE="$sandbox/os-release-deb" run "y
+"); rc=$?
+upd_line=$(grep -n '^sudo apt-get update' "$log" | head -n1 | cut -d: -f1)
+ins_line=$(grep -n '^sudo apt-get install -y .*git' "$log" | head -n1 | cut -d: -f1)
+listing=$(printf '%s' "$out" | sed '/Install these now/q')
+if [ -n "$upd_line" ] && [ -n "$ins_line" ] && [ "$upd_line" -lt "$ins_line" ] \
+	&& printf '%s' "$listing" | grep -q 'sudo apt-get update' \
+	&& printf '%s' "$listing" | grep -q 'sudo apt-get install -y git'; then
+	pass "install.sh: debian -> apt-get update runs (and is listed) before apt-get install"
+else
+	flunk "install.sh apt-get update (rc=$rc out=<$out> log=<$(cat "$log")>)"
+fi
+# non-debian families never run an update
+: > "$log"; rm -f "$sandbox/bin/git"
+out=$(run "y
+"); rc=$?
+if ! grep -q 'update' "$log" && ! printf '%s' "$out" | grep -q 'update'; then
+	pass "install.sh: fedora -> no package-list refresh"
+else
+	flunk "install.sh fedora must not update (log=<$(cat "$log")>)"
+fi
+fake sudo 0; fake git 0
+
+# 16. jq is part of the minimum set on every family when missing
+for fam_id in fedora ubuntu arch; do
+	printf 'ID=%s\n' "$fam_id" > "$sandbox/os-release-$fam_id"
+	rm -f "$sandbox/bin/jq"; : > "$log"
+	out=$(RICE_OS_RELEASE="$sandbox/os-release-$fam_id" run "n
+"); rc=$?
+	if printf '%s' "$out" | grep -qE '(install -y|--noconfirm) .*\bjq\b' && ! printf '%s' "$out" | grep -qE 'git|curl'; then
+		pass "install.sh: $fam_id -> jq missing is listed for install"
+	else
+		flunk "install.sh jq on $fam_id (rc=$rc out=<$out>)"
+	fi
+done
+fake jq 0
+# with everything present nothing is installed (case 1 covers it, jq included)
+: > "$log"
+out=$(run "" --plain); rc=$?
+if [ $rc -eq 0 ] && ! grep -q '^sudo' "$log" && ! printf '%s' "$out" | grep -q 'Install these now'; then
+	pass "install.sh: everything present (jq too) -> nothing installed"
+else
+	flunk "install.sh all present with jq (rc=$rc out=<$out>)"
+fi
 
 # 11. the hard re-ignore of secret-looking names beats the installer allowlist
 touch "$repo/installer/token_x.py"

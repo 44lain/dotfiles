@@ -5,7 +5,7 @@
 #   git clone https://github.com/44lain/dotfiles ~/.local/share/chezmoi && ~/.local/share/chezmoi/install.sh
 #
 # It checks the minimum the installer itself needs (python3 >= 3.11, git, curl,
-# chezmoi), shows what is missing and ASKS before installing it, makes sure the
+# jq, chezmoi), shows what is missing and ASKS before installing it, makes sure the
 # repo is in chezmoi's source directory, then opens the TUI.
 set -eu
 
@@ -53,10 +53,12 @@ missing=""
 have python3 || missing="$missing python3"
 have git     || missing="$missing git"
 have curl    || missing="$missing curl"
+have jq      || missing="$missing jq"   # rice-onboard hard-requires it
 need_chezmoi=0
 have chezmoi || need_chezmoi=1
 
 pm=""
+upd=""   # package-list refresh, debian family only (stock images ship empty lists)
 if [ -n "$missing" ]; then
 	# root needs no sudo (and may not have it); anyone else needs it
 	asroot=""
@@ -66,21 +68,28 @@ if [ -n "$missing" ]; then
 	fi
 	case $fam in
 		fedora) pm="${asroot}dnf install -y" ;;
-		debian) pm="${asroot}apt-get install -y" ;;
+		debian) upd="${asroot}apt-get update"
+			pm="${asroot}apt-get install -y" ;;
 		arch)   pm="${asroot}pacman -S --needed --noconfirm"
-			missing=$(printf '%s' "$missing" | sed 's/python3/python/') ;;
+			case $missing in *" python3"*) missing="${missing%% python3*} python${missing#*python3}" ;; esac ;;
 		*) die "distro not recognised; install$missing yourself and run this again." ;;
 	esac
 fi
 
 if [ -n "$missing" ] || [ "$need_chezmoi" -eq 1 ]; then
 	say "To open the guided installer I first need:"
-	[ -z "$missing" ] || say "  - system packages, with:  $pm$missing"
+	if [ -n "$missing" ]; then
+		say "  - system packages, with:"
+		[ -z "$upd" ] || say "      $upd"
+		say "      $pm$missing"
+	fi
 	[ "$need_chezmoi" -eq 0 ] || say "  - chezmoi: this downloads and runs a script from get.chezmoi.io, with:  sh -c \"\$(curl -fsLS get.chezmoi.io)\" -- -b ~/.local/bin"
 	printf 'Install these now? [y/N] '
 	read -r reply < "$TTY" || reply=""
 	case $reply in y|Y|yes|YES|s|S|sim) ;; *) die "nothing installed; install them yourself and run this again." ;; esac
 	if [ -n "$missing" ]; then
+		# shellcheck disable=SC2086 # $upd is a space-separated command: splitting is intended
+		[ -z "$upd" ] || $upd
 		# shellcheck disable=SC2086 # $pm and $missing are space-separated word lists: splitting is intended
 		$pm $missing
 	fi
