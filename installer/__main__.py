@@ -30,7 +30,16 @@ def build_state(args, environ, home=None):
     return s
 
 
+def ensure_local_bin_on_path(home):
+    """Tools installed in ~/.local/bin by an earlier step or run must be found."""
+    local = os.path.join(home or os.path.expanduser("~"), ".local", "bin")
+    parts = os.environ.get("PATH", "").split(os.pathsep)
+    if local not in parts:
+        os.environ["PATH"] = os.pathsep.join([local] + [p for p in parts if p])
+
+
 def main(argv=None, stdin=None, env=None, home=None) -> int:
+    ensure_local_bin_on_path(home)
     args = parse_args(sys.argv[1:] if argv is None else argv)
     environ = os.environ if env is None else env
     state = build_state(args, environ, home)

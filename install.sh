@@ -14,6 +14,9 @@ SRC=${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}
 TTY=${RICE_TTY:-/dev/tty}
 OSR=${RICE_OS_RELEASE:-/etc/os-release}
 
+# tools installed in ~/.local/bin by an earlier run (chezmoi) must be found now
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac
+
 say() { printf '%s\n' "$*"; }
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 

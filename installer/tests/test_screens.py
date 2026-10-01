@@ -128,7 +128,55 @@ class ProfileHost(Base):
         self.assertEqual((s.host, s.host_is_new), ("desktop", False))
 
 
+class ProfileHostSecondRun(Base):
+    def second_run(self, profile_answers):
+        d = Path(self.home, ".config/chezmoi")
+        d.mkdir(parents=True)
+        (d / "chezmoi.toml").write_text('[data]\nhost = "box"\nprofile = "guest"\n[data.hosts.box]\nscale = 1\n')
+        env = make_env(home=self.home, outputs={
+            "chezmoi data": cp(0, '{"hosts": {"desktop": {}, "box": {}}}')})
+        ui = FakeUI(*profile_answers)
+        s = self.state(env=env)
+        return ui, s
+
+    def test_keep_current_host_is_offered_and_skips_the_name_prompt(self):
+        ui, s = self.second_run(["guest", "keep"])
+        self.assertEqual(screens.profile_host(ui, s), "next")
+        self.assertEqual((s.host, s.host_is_new), ("box", False))
+        self.assertEqual([k for k, _ in ui.asked], ["menu", "menu"])
+        self.assertEqual(ui.last_options[0][0], "keep")
+        self.assertIn("box", ui.last_options[0][1])
+
+    def test_choosing_new_still_rejects_names_that_exist(self):
+        ui, s = self.second_run(["guest", "new", "box"])
+        screens.profile_host(ui, s)
+        self.assertIn("already exists", ui.text_of("validated"))
+
+    def test_first_run_has_no_keep_entry(self):
+        env = make_env(home=self.home, outputs={"chezmoi data": cp(0, "{}")})
+        ui = FakeUI("guest", "laptop")
+        screens.profile_host(ui, self.state(env=env))
+        self.assertEqual([k for k, _ in ui.asked], ["menu", "text"])
+
+
 class Scan(Base):
+    def test_a_no_source_item_shows_its_family_note_as_the_manual_text(self):
+        (self.tmp / "repo/.chezmoidata/packages.toml").write_text(TOML + """
+[packages.hypr]
+desc = "compositor"
+section = "x"
+bin = "Hyprland"
+fedora = "hypr"
+debian = "hypr"
+note_debian = "use the backports suite"
+""")
+        env = make_env(home=self.home, which={"kitty", "rofi"}, outputs={
+            "apt-cache madison": cp(0, ""), "apt-cache policy": cp(0, "")})
+        ui = FakeUI()
+        screens.scan_screen(ui, self.state(env=env))
+        self.assertIn("use the backports suite", ui.text_of("warn"))
+        self.assertNotIn("Manual: -", ui.text_of("warn"))
+
     def test_nothing_to_do_jumps_to_configure(self):
         env = make_env(home=self.home, which={"kitty", "rofi"})
         ui = FakeUI()
@@ -334,6 +382,27 @@ class Configure(Base):
         self.assertIn("--accept-detected", onboard)
         shell = json.loads(Path(self.home, ".config/grootshell/shell.json").read_text())
         self.assertEqual(shell["wallpaper"]["directory"], str(self.tmp))
+
+    def test_init_does_not_leave_the_maintainers_defaults_behind(self):
+        # chezmoi's --promptString has no effect on promptStringOnce (checked with
+        # chezmoi 2.70), so the chosen profile/host are written right after init.
+        cfg = Path(self.home, ".config/chezmoi/chezmoi.toml")
+
+        def runner(argv, on_line=None):
+            self.calls.append(list(argv))
+            if argv[:2] == ["chezmoi", "init"]:
+                cfg.parent.mkdir(parents=True, exist_ok=True)
+                cfg.write_text('[data]\n    profile = "guest"\n    host    = "desktop"\n    wallpaper_path = ""\n')
+            return cp(0, "")
+        s = self.state(runner=runner)
+        s.profile, s.host, s.git_name, s.git_email = "personal", "parrot", "Ana", "ana@example.com"
+        self.assertEqual(screens.configure_screen(FakeUI(True), s), "next")
+        self.assertIn(["chezmoi", "init", "--promptDefaults"], self.calls)
+        text = cfg.read_text()
+        self.assertIn('profile = "personal"', text)
+        self.assertIn('host = "parrot"', text)
+        self.assertNotIn("desktop", text)
+        self.assertIn('wallpaper_path = ""', text)
 
     def test_declining_applies_nothing(self):
         s = self.ready()

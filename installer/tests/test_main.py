@@ -45,6 +45,16 @@ class Main(unittest.TestCase):
         self.assertIn("Welcome", out.getvalue())
         self.assertIn("Stopped", out.getvalue())
 
+    def test_local_bin_is_put_on_path_so_tools_installed_there_are_found(self):
+        import contextlib
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"PATH": "/usr/bin"}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            cli.main(["--plain", "--lang", "en"], stdin=io.StringIO(""), env={}, home=tmp)
+            self.assertEqual(os.environ["PATH"].split(":")[0], os.path.join(tmp, ".local", "bin"))
+            cli.main(["--plain", "--lang", "en"], stdin=io.StringIO(""), env={}, home=tmp)
+            self.assertEqual(os.environ["PATH"].count(os.path.join(tmp, ".local", "bin")), 1)
+
     def test_unreadable_packages_file_is_an_error_not_a_traceback(self):
         import contextlib
         err = io.StringIO()

@@ -25,6 +25,7 @@ MESSAGES = {
     "profile.personal": "personal (extras do mantenedor)",
     "host.detected": "Detectado: teclado {kb} · vídeo {gpu}",
     "host.prompt": "Host",
+    "host.keep": "manter o host atual desta máquina: {name}",
     "host.new": "novo host para esta máquina (recomendado)",
     "host.guest_new": "Será criado um host novo para esta máquina, com os monitores, o teclado e o vídeo detectados. Os hosts do mantenedor não são oferecidos.",
     "host.name": "Nome desta máquina",

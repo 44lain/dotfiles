@@ -3,6 +3,7 @@ or an int (jump to that screen index). Screens 1-5 only read; nothing is written
 installed before the confirmation in screen 5 (packages) and screen 7 (configuration)."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import socket
@@ -114,10 +115,16 @@ def profile_host(ui, s):
     known = model.known_hosts(s.env)
     det = model.detect_summary(s.env)
     ui.info(t("host.detected", kb=det["kb"] or t("welcome.none"), gpu=det["gpu"] or t("welcome.none")))
-    if s.profile == "personal" and known:
-        c = ui.menu(t("host.prompt"), [("new", t("host.new"))] + [(h, h) for h in known])
+    cur = model.current_host(s.env)
+    keep = [("keep", t("host.keep", name=cur))] if cur and cur in model.local_hosts(s.env) else []
+    if keep or (s.profile == "personal" and known):
+        others = [(h, h) for h in known] if s.profile == "personal" else []
+        c = ui.menu(t("host.prompt"), keep + [("new", t("host.new"))] + others)
         if c is BACK or c is CANCEL:
             return _nav(c)
+        if c == "keep":
+            s.host, s.host_is_new = cur, False
+            return "next"
         if c != "new":
             s.host, s.host_is_new = c, False
             return "next"
@@ -298,6 +305,18 @@ def _fail(ui, s, what, err):
     ui.error(s.t("configure.step_failed", what=what, error=err))
 
 
+def _pin_profile_host(cfg, profile, host):
+    """chezmoi init --promptDefaults writes the maintainer's defaults and
+    --promptString does not reach promptStringOnce, so set the chosen values."""
+    with open(cfg, encoding="utf-8") as f:
+        text = f.read()
+    for key, value in (("profile", profile), ("host", host)):
+        text = re.sub(rf"(?m)^(\s*){key}\s*=.*$", lambda m, k=key, v=value: f"{m.group(1)}{k} = {json.dumps(v)}",
+                      text, count=1)
+    with open(cfg, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def configure_screen(ui, s):
     t = s.t
     ui.title(7, TOTAL, t("configure.title"))
@@ -329,6 +348,12 @@ def configure_screen(ui, s):
         cp = _run(s, ["chezmoi", "init", "--promptDefaults"])
         if cp.returncode != 0:
             _fail(ui, s, "chezmoi init", (cp.stdout or "").strip()[-300:])
+            return IDX["prefs"]
+        try:
+            if os.path.exists(cfg):
+                _pin_profile_host(cfg, s.profile, s.host)
+        except OSError as e:
+            _fail(ui, s, "chezmoi init", str(e))
             return IDX["prefs"]
     ui.info(t("configure.bin"))
     cp = _run(s, ["chezmoi", "apply", os.path.join(s.home, ".local", "bin")])

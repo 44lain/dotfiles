@@ -137,4 +137,16 @@ if printf '%s' "$out" | grep -q 'get.chezmoi.io' && printf '%s' "$out" | grep -q
 else
 	flunk "install.sh chezmoi wording (rc=$rc out=<$out>)"
 fi
+
+# 10. a chezmoi living in ~/.local/bin (installed by an earlier run) is found: no prompt
+mkdir -p "$home/.local/bin"; : > "$log"
+rm -f "$sandbox/bin/chezmoi"
+printf '#!/bin/sh\nexit 0\n' > "$home/.local/bin/chezmoi"; chmod +x "$home/.local/bin/chezmoi"
+out=$(run "" --plain); rc=$?
+if [ $rc -eq 0 ] && ! printf '%s' "$out" | grep -q 'Install these now' && grep -q '^python3 -m installer' "$log"; then
+	pass "install.sh: chezmoi in ~/.local/bin is found on a re-run (no install prompt)"
+else
+	flunk "install.sh ~/.local/bin on PATH (rc=$rc out=<$out>)"
+fi
+rm -f "$home/.local/bin/chezmoi"
 exit $fail

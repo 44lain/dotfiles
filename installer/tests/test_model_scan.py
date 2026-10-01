@@ -222,3 +222,41 @@ class Scan(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NotesAsManual(unittest.TestCase):
+    TOML2 = """
+[packages.hypr2]
+desc = "compositor"
+section = "x"
+bin = "Hypr2"
+required = true
+fedora = "hypr2"
+debian = "hypr2"
+arch = "hypr2"
+note_debian = "use backports; never add Debian repos on Ubuntu"
+[packages.hypr3]
+desc = "other"
+section = "x"
+bin = "Hypr3"
+fedora = "hypr3"
+debian = "hypr3"
+arch = "hypr3"
+manual = "do it by hand"
+note_debian = "ignored when manual exists"
+"""
+
+    def test_a_debian_note_fills_manual_when_the_package_has_none(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as f:
+            f.write(self.TOML2)
+        try:
+            pk = model.load_packages(f.name)
+        finally:
+            os.unlink(f.name)
+        env = make_env(outputs={"apt-cache madison": cp(0, ""), "apt-cache policy": cp(0, "")})
+        out = {s.key: s for s in model.scan(pk, "debian", env)}
+        self.assertEqual(out["hypr2"].state, "no_source")
+        self.assertIn("never add Debian repos on Ubuntu", out["hypr2"].manual)
+        self.assertEqual(out["hypr3"].manual, "do it by hand")
+        fed = {s.key: s for s in model.scan(pk, "fedora", make_env())}
+        self.assertEqual(fed["hypr2"].manual, "")  # another family's note is not shown

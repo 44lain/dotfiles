@@ -28,6 +28,7 @@ MESSAGES = {
     "profile.personal": "personal (the maintainer's extras)",
     "host.detected": "Detected: keyboard layout {kb} · graphics {gpu}",
     "host.prompt": "Host",
+    "host.keep": "keep the current host of this machine: {name}",
     "host.new": "new host for this machine (recommended)",
     "host.guest_new": "A new host is created for this machine, with the detected monitors, keyboard and graphics. The maintainer's hosts are not offered.",
     "host.name": "Name for this machine",

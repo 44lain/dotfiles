@@ -163,8 +163,13 @@ def _applicable_recipe(p: Package, family: str, env: Env):
     return r
 
 
+def _manual(p: Package, family: str) -> str:
+    """The item's own manual text, or this family's note when it has none."""
+    return p.manual or p.notes.get(family, "")
+
+
 def _resolve(p: Package, state: str, family: str, env: Env) -> Status:
-    base = dict(key=p.key, desc=p.desc, required=p.required, manual=p.manual)
+    base = dict(key=p.key, desc=p.desc, required=p.required, manual=_manual(p, family))
     r = _applicable_recipe(p, family, env)
     name = p.names.get(family, "")
     if r and r["kind"] in REPO_FAMILY:
@@ -198,7 +203,7 @@ def scan(packages: list[Package], family: str, env: Env) -> list[Status]:
             old = bool(ver) and vkey(ver) < vkey(p.min_version)
         if present and not old:
             out.append(Status(key=p.key, desc=p.desc, required=p.required, state="ok",
-                              source=None, manual=p.manual))
+                              source=None, manual=_manual(p, family)))
             continue
         out.append(_resolve(p, "too_old" if old else "missing", family, env))
     return out
@@ -299,6 +304,35 @@ def known_hosts(env: Env) -> list[str]:
     try:
         return sorted((json.loads(cp.stdout).get("hosts") or {}).keys())
     except (ValueError, AttributeError):
+        return []
+
+
+def _local_config(env: Env) -> dict:
+    path = os.path.join(env.home, ".config", "chezmoi", "chezmoi.toml")
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def local_hosts(env: Env) -> list[str]:
+    """Hosts defined only in this machine's ~/.config/chezmoi/chezmoi.toml."""
+    hosts = (_local_config(env).get("data") or {}).get("hosts")
+    return sorted(hosts) if isinstance(hosts, dict) else []
+
+
+def current_host(env: Env) -> str:
+    host = (_local_config(env).get("data") or {}).get("host")
+    return host if isinstance(host, str) else ""
+
+
+def repo_hosts(repo) -> list[str]:
+    """Hosts of the shared .chezmoidata/hosts.toml."""
+    try:
+        with open(os.path.join(str(repo), ".chezmoidata", "hosts.toml"), "rb") as f:
+            return sorted(tomllib.load(f).get("hosts") or {})
+    except (OSError, tomllib.TOMLDecodeError):
         return []
 
 

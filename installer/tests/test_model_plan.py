@@ -87,6 +87,39 @@ class Detect(unittest.TestCase):
         self.assertEqual(model.known_hosts(env), ["desktop", "pentest"])
         self.assertEqual(model.known_hosts(make_env()), [])
 
+    def write_cfg(self, tmp, text):
+        import os
+        d = os.path.join(tmp, ".config", "chezmoi")
+        os.makedirs(d)
+        with open(os.path.join(d, "chezmoi.toml"), "w") as f:
+            f.write(text)
+
+    def test_local_hosts_and_current_host_come_from_the_machine_local_config(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            env = make_env(home=tmp)
+            self.assertEqual(model.local_hosts(env), [])  # no file
+            self.assertEqual(model.current_host(env), "")
+            self.write_cfg(tmp, '[data]\nhost = "box"\nprofile = "guest"\n[data.hosts.box]\nscale = 1\n')
+            self.assertEqual(model.local_hosts(env), ["box"])
+            self.assertEqual(model.current_host(env), "box")
+
+    def test_unreadable_local_config_gives_nothing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            self.write_cfg(tmp, "{ nope")
+            env = make_env(home=tmp)
+            self.assertEqual((model.local_hosts(env), model.current_host(env)), ([], ""))
+
+    def test_repo_hosts_reads_the_shared_hosts_file(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(model.repo_hosts(Path(tmp)), [])
+            (Path(tmp) / ".chezmoidata").mkdir()
+            (Path(tmp) / ".chezmoidata/hosts.toml").write_text("[hosts.desktop]\nscale=1\n[hosts.pentest]\nscale=1\n")
+            self.assertEqual(model.repo_hosts(Path(tmp)), ["desktop", "pentest"])
+
     def test_detect_summary(self):
         env = make_env(outputs={
             "localectl status": cp(0, "   System Locale: LANG=en_US\n       X11 Layout: us,br\n"),
