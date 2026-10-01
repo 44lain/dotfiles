@@ -275,4 +275,15 @@ else
 	flunk "onboard flags: wallpaper special chars (rc=$rc got=<$got> out=<$out>)"
 fi
 
+# --- F5. control characters (newline) in free-text flags are rejected up front ----------
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
+for fl in --wallpaper-path --git-name --git-email; do
+	out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile guest --host h5 "$fl" $'a\nb' </dev/null 2>&1); rc=$?
+	if [ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'control character' && [ ! -e "$sandbox/home/.config" ]; then
+		pass "onboard flags: newline in $fl -> exit 2, nothing touched"
+	else
+		flunk "onboard flags: newline in $fl (rc=$rc out=<$out>)"
+	fi
+done
+
 exit $fail

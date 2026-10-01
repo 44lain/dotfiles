@@ -112,4 +112,25 @@ else
 	flunk "uninstall: symlinked ~/.bashrc replaced"
 fi
 rm -f "$HOME/.bashrc" "$HOME/real-bashrc"
+# --- stray/duplicated markers: refuse, byte-identical, state kept (ask and --yes) -------
+S='# >>> rice bashrc.d loader >>>'; E='# <<< rice bashrc.d loader <<<'
+for shape in "dup-start" "two-blocks"; do
+	for mode in "" --yes; do
+		if [ "$shape" = dup-start ]; then
+			printf '%s\nx\n%s\nmine1\n%s\nmine2\nmine3\n' "$S" "$E" "$S" > "$HOME/.bashrc"
+		else
+			printf '%s\nx\n%s\nmine1\n%s\ny\n%s\nmine2\n' "$S" "$E" "$S" "$E" > "$HOME/.bashrc"
+		fi
+		: > "$XDG_STATE_HOME/rice/bashrc-loader"
+		before=$(cat "$HOME/.bashrc")
+		# shellcheck disable=SC2086
+		out=$(printf 'y\n' | bash "$uninstall" $mode 2>&1)
+		if [ "$(cat "$HOME/.bashrc")" = "$before" ] && [ -e "$XDG_STATE_HOME/rice/bashrc-loader" ] \
+			&& printf '%s' "$out" | grep -q 'markers in ~/.bashrc are incomplete'; then
+			pass "uninstall: $shape -> refused, untouched (${mode:-ask})"
+		else
+			flunk "uninstall: $shape mishandled (${mode:-ask}) out=<$out>"
+		fi
+	done
+done
 exit $fail

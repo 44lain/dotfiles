@@ -38,6 +38,9 @@ while [ $# -gt 0 ]; do
 done
 case $flag_profile in ""|personal|guest) ;; *) echo "rice-onboard: profile must be 'personal' or 'guest'" >&2; exit 2 ;; esac
 case $flag_loader in ""|yes|no) ;; *) echo "rice-onboard: --bashrc-loader must be yes or no" >&2; exit 2 ;; esac
+for v in "$flag_wallpaper" "$flag_git_name" "$flag_git_email"; do
+	case $v in *[[:cntrl:]]*) echo "rice-onboard: --wallpaper-path/--git-name/--git-email must not contain a newline or other control character" >&2; exit 2 ;; esac
+done
 case $flag_host in *[!A-Za-z0-9_-]*) echo "rice-onboard: host name must match [A-Za-z0-9_-]+" >&2; exit 2 ;; esac
 
 # os_family — keep identical to the copy in executable_rice-doctor
