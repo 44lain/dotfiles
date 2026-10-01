@@ -15,6 +15,7 @@ from installer.ui import BACK, CANCEL, Item
 
 TOTAL = 8
 IDX = dict(welcome=0, profile=1, prefs=2, scan=3, plan=4, install=5, configure=6, verify=7)
+MAX_REAUTH = 2
 SESSION_ONLY = ("grootshell (qs) not running", "hypridle not running")
 
 
@@ -220,7 +221,7 @@ def plan_screen(ui, s):
     c = ui.confirm(t("plan.confirm"), default=False)
     if c is CANCEL:
         return "cancel"
-    if not c:
+    if c is BACK or not c:
         return "back"
     s.plan = plan
     return "next"
@@ -238,7 +239,9 @@ def install_screen(ui, s):
     ok = skipped = failed = 0
     for step in s.plan:
         title = t(step.title_key, **step.title_args)
+        reauth = 0
         while True:
+            old = s.ctx.log
             try:
                 with ui.progress(title) as push:
                     s.ctx.log = push
@@ -246,24 +249,31 @@ def install_screen(ui, s):
                 ui.success(t("install.step_ok", title=title))
                 ok += 1
                 break
-            except recipes.SudoExpired:
-                if ui.suspend(["sudo", "-v"]) != 0:
-                    ui.error(t("install.sudo_failed"))
-                    return "cancel"
-                continue
             except (recipes.RecipeError, OSError) as e:
+                if isinstance(e, recipes.SudoExpired) and reauth < MAX_REAUTH:
+                    reauth += 1
+                    if ui.suspend(["sudo", "-v"]) != 0:
+                        ui.error(t("install.sudo_failed"))
+                        s.plan = []
+                        return "cancel"
+                    continue
                 ui.error(t("install.step_failed", title=title))
                 ui.error(t("install.error", error=str(e)))
                 c = ui.menu(t("install.menu"), [("retry", t("install.retry")), ("skip", t("install.skip")),
                                                  ("abort", t("install.abort"))], default=1)
                 if c == "retry":
+                    reauth = 0
                     continue
                 if c == "skip":
                     skipped += 1
                     break
                 # abort, BACK and CANCEL all stop the installation
                 ui.warn(t("install.aborted"))
+                s.plan = []
                 return "cancel"
+            finally:
+                s.ctx.log = old
+    s.plan = []  # done: revisiting this screen must never re-run anything
     ui.info(t("install.summary", ok=ok, skipped=skipped, failed=failed))
     ui.info(t("install.log", path=s.log_path))
     return "next"
@@ -299,24 +309,26 @@ def configure_screen(ui, s):
         c = ui.confirm(t("configure.loader"), default=True)
         if c is CANCEL:
             return "cancel"
+        if c is BACK:
+            return IDX["prefs"]
         loader = "yes" if c else "no"
     go = ui.confirm(t("configure.go"), default=False)
     if go is CANCEL:
         return "cancel"
-    if not go:
-        return "back"
+    if go is BACK or not go:
+        return IDX["prefs"]
     cfg = os.path.join(s.home, ".config", "chezmoi", "chezmoi.toml")
     if not os.path.exists(cfg):
         ui.info(t("configure.init"))
         cp = _run(s, ["chezmoi", "init", "--promptDefaults"])
         if cp.returncode != 0:
             _fail(ui, s, "chezmoi init", (cp.stdout or "").strip()[-300:])
-            return "back"
+            return IDX["prefs"]
     ui.info(t("configure.bin"))
     cp = _run(s, ["chezmoi", "apply", os.path.join(s.home, ".local", "bin")])
     if cp.returncode != 0:
         _fail(ui, s, "chezmoi apply ~/.local/bin", (cp.stdout or "").strip()[-300:])
-        return "back"
+        return IDX["prefs"]
     onboard = [os.path.join(s.home, ".local", "bin", "rice-onboard"),
                "--profile", s.profile, "--host", s.host,
                "--git-name", s.git_name, "--git-email", s.git_email,
@@ -325,7 +337,7 @@ def configure_screen(ui, s):
     rc = ui.suspend(onboard)
     if rc != 0:
         ui.error(t("configure.onboard_failed", rc=rc))
-        return "back"
+        return IDX["prefs"]
     if s.wall_dir:
         try:
             ui.success(t("configure.shell_json", path=validate.write_shell_json(s.wall_dir, s.home)))
@@ -366,7 +378,7 @@ def verify_screen(ui, s):
     ui.info(t("verify.uninstall_text"))
     r = ui.table([t("app.title")], [[t("verify.next")]])
     if r is BACK:
-        return "back"
+        return IDX["configure"]
     return "cancel" if r is CANCEL else "next"
 
 

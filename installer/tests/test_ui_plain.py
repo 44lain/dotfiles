@@ -79,6 +79,9 @@ class Confirm(unittest.TestCase):
         self.assertIs(plain("\n")[0].confirm("Sure?"), False)          # default is NO
         self.assertIs(plain("\n")[0].confirm("Sure?", default=True), True)
         self.assertIs(plain("q\n")[0].confirm("Sure?"), ui.CANCEL)
+        self.assertIs(plain("b\n")[0].confirm("Sure?"), ui.BACK)
+        self.assertIs(plain("s\n")[0].confirm("Sure?"), True)
+        self.assertIs(plain("")[0].confirm("Sure?"), ui.CANCEL)
 
 
 class Output(unittest.TestCase):

@@ -23,6 +23,8 @@ u.title(3, 8, "Preferences")
 u.info("hello from the frame")
 if scenario == "menu":
     r = u.menu("Pick one", [("a", "Alpha"), ("b", "Beta")])
+elif scenario == "confirm":
+    r = u.confirm("Really?")
 elif scenario == "text":
     def check(v):
         return (True, "looks good") if v else (False, "type something")
@@ -39,7 +41,7 @@ if r is ui.CANCEL:
     r = "CANCEL"
 elif r is ui.BACK:
     r = "BACK"
-print("RESULT", r if scenario == "menu" or r in ("CANCEL", "BACK") else repr(r))
+print("RESULT", r if scenario in ("menu", "confirm") or r in ("CANCEL", "BACK") else repr(r))
 """
 
 DOWN = b"\x1bOB"  # xterm terminfo kcud1 (keypad application mode)
@@ -225,6 +227,13 @@ class Smoke(unittest.TestCase):
         out, code = run_in_pty(30, 100, [(LEFT, "RESULT")])
         self.assertEqual(code, 0)
         self.assertIn("RESULT BACK", out)
+
+    def test_left_arrow_at_a_confirm_is_back_and_esc_is_cancel(self):
+        out, code = run_in_pty(30, 100, [(LEFT, "RESULT")], scenario="confirm", ready="Really?")
+        self.assertEqual(code, 0)
+        self.assertIn("RESULT BACK", out)
+        out, code = run_in_pty(30, 100, [(b"\x1b", "RESULT")], scenario="confirm", ready="Really?")
+        self.assertIn("RESULT CANCEL", out)
 
     def test_a_small_terminal_shows_the_resize_notice_instead_of_crashing(self):
         out, code = run_in_pty(10, 40, [(b"x", None)], ready="too small", tail=0.5)

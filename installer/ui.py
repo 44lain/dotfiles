@@ -160,11 +160,14 @@ class PlainUI:
             return value
 
     def confirm(self, prompt, default=False):
+        """bool | BACK (b) | CANCEL (q or end of input)."""
         while True:
             a = self._read(f"{prompt} [{'Y/n' if default else 'y/N'}] ")
             if a is None or a.strip().lower() == "q":
                 return CANCEL
             a = a.strip().lower()
+            if a == "b":
+                return BACK
             if a == "":
                 return default
             if a in ("y", "yes", "s", "sim"):
@@ -533,7 +536,8 @@ class CursesUI:
                 value += k  # KEY_RESIZE and other key codes are ints: ignored, redraw
 
     def confirm(self, prompt, default=False):
+        """bool | BACK (LEFT) | CANCEL (ESC)."""
         r = self.menu(prompt, [("y", self.t("ui.yes")), ("n", self.t("ui.no"))], default=0 if default else 1)
         if r is BACK or r is CANCEL:
-            return CANCEL
+            return r
         return r == "y"

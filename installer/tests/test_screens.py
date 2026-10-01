@@ -163,6 +163,14 @@ class Plan(Base):
         self.assertEqual(self.calls, [])
         self.assertEqual(s.plan, [])
 
+    def test_back_and_cancel_at_the_confirmation_install_nothing(self):
+        for answer, expected in ((BACK, "back"), (CANCEL, "cancel")):
+            self.calls.clear()
+            s = self.prepared()
+            self.assertEqual(screens.plan_screen(FakeUI(["rofi"], answer), s), expected)
+            self.assertEqual(self.calls, [])
+            self.assertEqual(s.plan, [])
+
     def test_confirming_stores_the_plan_and_shows_exact_commands(self):
         ui = FakeUI(["rofi"], True)
         s = self.prepared()
@@ -234,6 +242,45 @@ class Install(Base):
         self.assertEqual(screens.install_screen(ui, s), "cancel")
         self.assertEqual(self.calls, [])
 
+    def test_a_second_visit_executes_nothing(self):
+        s = self.planned(self.runner)
+        screens.install_screen(FakeUI(), s)
+        self.assertEqual(s.plan, [])
+        self.calls.clear()
+        ui = FakeUI()
+        self.assertEqual(screens.install_screen(ui, s), "next")
+        self.assertEqual(self.calls, [])
+        self.assertEqual(ui.suspended, [])
+
+    def test_ctx_log_is_restored_after_the_installation(self):
+        s = self.planned(self.runner)
+        original = lambda line: None  # noqa: E731
+        s.ctx.log = original
+        screens.install_screen(FakeUI(), s)
+        self.assertIs(s.ctx.log, original)
+
+    def test_ctx_log_is_restored_when_a_step_fails(self):
+        s = self.planned(lambda argv, on_line=None: cp(100, "E: boom\n"))
+        original = lambda line: None  # noqa: E731
+        s.ctx.log = original
+        screens.install_screen(FakeUI("abort"), s)
+        self.assertIs(s.ctx.log, original)
+
+    def test_sudo_reauthentication_is_bounded(self):
+        n = []
+
+        def runner(argv, on_line=None):
+            n.append(1)
+            if len(n) > 50:
+                raise AssertionError("unbounded sudo re-authentication")
+            return cp(1, "sudo: a password is required\n")
+
+        s = self.planned(runner)
+        ui = FakeUI("skip")
+        self.assertEqual(screens.install_screen(ui, s), "next")
+        self.assertLessEqual(ui.suspended.count(["sudo", "-v"]), 3)
+        self.assertIn("password is required", ui.text_of("error"))
+
     def test_root_needs_no_sudo_prompt(self):
         s = self.planned(self.runner)
         s.ctx.sudo = []
@@ -271,9 +318,39 @@ class Configure(Base):
     def test_declining_applies_nothing(self):
         s = self.ready()
         ui = FakeUI(False, False)
-        self.assertEqual(screens.configure_screen(ui, s), "back")
+        self.assertEqual(screens.configure_screen(ui, s), screens.IDX["prefs"])
         self.assertEqual(self.calls, [])
         self.assertEqual(ui.suspended, [])
+
+    def test_back_and_cancel_at_the_confirmations(self):
+        for answers, expected in (((BACK,), screens.IDX["prefs"]), ((CANCEL,), "cancel")):
+            s = self.ready()  # no ~/.bashrc: only the "apply now?" confirm is asked
+            ui = FakeUI(*answers)
+            self.assertEqual(screens.configure_screen(ui, s), expected)
+            self.assertEqual(self.calls, [])
+            self.assertEqual(ui.suspended, [])
+        Path(self.home, ".bashrc").write_text("# stock\n")
+        for answers, expected in (((BACK,), screens.IDX["prefs"]), ((CANCEL,), "cancel")):
+            ui = FakeUI(*answers)  # the loader confirm comes first
+            self.assertEqual(screens.configure_screen(ui, self.ready()), expected)
+            self.assertEqual(self.calls, [])
+
+    def test_a_failing_chezmoi_apply_returns_to_preferences(self):
+        def runner(argv, on_line=None):
+            self.calls.append(list(argv))
+            return cp(1, "boom") if argv[:2] == ["chezmoi", "apply"] else cp(0, "")
+        s = self.state(runner=runner)
+        s.profile, s.host, s.git_name, s.git_email = "guest", "parrot", "Ana", "ana@example.com"
+        ui = FakeUI(True)
+        self.assertEqual(screens.configure_screen(ui, s), screens.IDX["prefs"])
+        self.assertEqual(ui.suspended, [])
+        self.assertFalse(any(c[0] == "apt-get" or c[:2] == ["sudo", "-n"] for c in self.calls))
+
+    def test_a_failing_onboard_returns_to_preferences(self):
+        s = self.ready()
+        ui = FakeUI(True)
+        ui.suspend_rc = 3
+        self.assertEqual(screens.configure_screen(ui, s), screens.IDX["prefs"])
 
     def test_invalid_shell_json_is_reported_and_left_alone(self):
         p = Path(self.home, ".config/grootshell/shell.json")
@@ -299,6 +376,10 @@ class Verify(Base):
         self.assertIn("How to go back", shown)
         self.assertIn("rice uninstall", shown)
 
+    def test_back_from_the_final_table_goes_to_configure(self):
+        s = self.state(runner=lambda argv, on_line=None: cp(0, "  ok   fonts\n"))
+        self.assertEqual(screens.verify_screen(FakeUI(BACK), s), screens.IDX["configure"])
+
     def test_missing_doctor_is_a_message_not_a_crash(self):
         s = self.state(runner=lambda argv, on_line=None: cp(127, "command not found"))
         ui = FakeUI()
@@ -311,6 +392,15 @@ class Flow(Base):
         ui = FakeUI(CANCEL)
         self.assertEqual(screens.run_flow(ui, self.state()), 1)
         self.assertIn("Stopped", ui.text_of("warn"))
+
+    def test_declining_configure_when_nothing_is_missing_ends_in_preferences(self):
+        env = make_env(home=self.home, which={"kitty", "rofi"})
+        # welcome, profile, host name, git name, e-mail, wallpaper dir, image, configure? no
+        ui = FakeUI("go", "guest", "box", "Ana", "ana@example.com", "", "skip", False)
+        self.assertEqual(screens.run_flow(ui, self.state(env=env)), 1)
+        kinds = [k for k, _ in ui.asked]
+        self.assertEqual(kinds, ["menu", "menu", "text", "text", "text", "text", "menu", "confirm", "text"])
+        self.assertEqual(self.calls, [])
 
     def test_language_switch_redraws_in_portuguese(self):
         ui = FakeUI("lang", CANCEL)
