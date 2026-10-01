@@ -7,6 +7,8 @@ LICENSE
 Makefile
 docs
 test
+install.sh
+installer
 
 # --- machine-local -----------------------------------------------------
 # user.email lives here, created per machine, never in the repo. See

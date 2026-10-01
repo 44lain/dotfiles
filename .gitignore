@@ -109,3 +109,9 @@
 **/.bash_history
 **/known_hosts
 **/mcp.json
+
+# --- installer (guided TUI) -------------------------------------------------
+!/install.sh
+!/installer/*.py
+!/installer/messages/*.py
+!/installer/tests/*.py

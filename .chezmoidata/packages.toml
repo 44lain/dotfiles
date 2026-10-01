@@ -10,6 +10,14 @@
 #   note_<family>        extra hint printed next to the package
 #   manual       what to do when there is no package
 #   min_version  oldest usable version (used to explain an apt release that is too old)
+#   check        for items with no `bin`: "font:<Family>" or "path:<path>" — how the
+#                installer's scan sees them as installed (doc-only items have neither)
+#   [recipe]     how the installer gets it where the distro has no package; see
+#                docs/superpowers/specs/2026-09-30-guided-installer-design.md §1.
+#                kinds: release-binary, fonts, git-clone (fallbacks, used only when the
+#                family has no package name) and apt-repo, dnf-copr (repository
+#                prerequisites, used whenever the family matches). Every download is
+#                pinned to a version with sha256.
 #
 # "debian" means every Debian-family distro (Debian, Ubuntu, Mint, Kali,
 # Parrot, Pop!_OS...): they share the apt package names.
@@ -26,6 +34,10 @@ arch        = "hyprland"
 note_debian = "Debian only (never add Debian repositories on Ubuntu, Linux Mint or Pop!_OS: it breaks the system; there you need a release that ships Hyprland 0.55+ or a source build). On Debian stable the usable Hyprland is only in the release's backports repository: add the line `deb http://deb.debian.org/debian <release>-backports main` (see https://backports.debian.org/Instructions/), run `sudo apt update`, then `sudo apt install -t <release>-backports hyprland`; Parrot already has backports enabled, so the printed command works as-is there"
 note_fedora = "stock Fedora has no Hyprland stack: first run 'sudo dnf copr enable sdegler/hyprland' (also provides hypridle, hyprlock, hyprpaper, hyprpolkitagent, uwsm, cliphist)"
 
+[packages.hyprland.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
+
 [packages.hypridle]
 desc     = "idle daemon"
 section  = "Compositor & session"
@@ -34,6 +46,10 @@ required = true
 fedora   = "hypridle"
 debian   = "hypridle"
 arch     = "hypridle"
+
+[packages.hypridle.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
 
 [packages.hyprlock]
 desc     = "lock screen"
@@ -44,6 +60,10 @@ fedora   = "hyprlock"
 debian   = "hyprlock"
 arch     = "hyprlock"
 
+[packages.hyprlock.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
+
 [packages.hyprpaper]
 desc    = "wallpaper fallback (grootshell draws the wallpaper day to day)"
 section = "Compositor & session"
@@ -51,6 +71,10 @@ bin     = "hyprpaper"
 fedora  = "hyprpaper"
 debian  = "hyprpaper"
 arch    = "hyprpaper"
+
+[packages.hyprpaper.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
 
 [packages.uwsm]
 desc     = "session manager that wraps every autostart app"
@@ -60,6 +84,10 @@ required = true
 fedora   = "uwsm"
 debian   = "uwsm"
 arch     = "uwsm"
+
+[packages.uwsm.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
 
 [packages.hyprpolkitagent]
 desc      = "polkit agent"
@@ -79,6 +107,28 @@ debian      = "quickshell"
 arch        = "quickshell"
 note_fedora = "COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell"
 
+[packages.quickshell.recipe]
+kind    = "dnf-copr"
+name    = "errornointernet/quickshell"
+package = "quickshell"
+
+[packages.grootshell]
+desc     = "Grootshell (bar, notifications, wallpaper): the Quickshell config this rice ships with"
+section  = "Bar / theming"
+bin      = ""
+check    = "path:~/.config/quickshell/grootshell"
+required = true
+fedora   = ""
+debian   = ""
+arch     = ""
+manual   = "git clone -b rice https://github.com/44lain/grootshell ~/.config/quickshell/grootshell"
+
+[packages.grootshell.recipe]
+kind   = "git-clone"
+url    = "https://github.com/44lain/grootshell"
+branch = "rice"
+dest   = "~/.config/quickshell/grootshell"
+
 [packages.matugen]
 desc     = "wallpaper -> colour palette"
 section  = "Bar / theming"
@@ -88,6 +138,14 @@ fedora   = ""
 debian   = ""
 arch     = "matugen"
 manual   = "cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first)"
+
+[packages.matugen.recipe]
+kind   = "release-binary"
+arch   = "x86_64"
+url    = "https://github.com/InioX/matugen/releases/download/v4.2.0/matugen-4.2.0-x86_64.tar.gz"
+sha256 = "a2e3b50e49ed6439999ba3c252ed04fabd98ee4e9d12e5e5dff2e66370569751"
+member = "matugen"
+dest   = "~/.local/bin/matugen"
 
 [packages.kitty]
 desc     = "terminal"
@@ -107,6 +165,16 @@ debian  = ""
 arch    = "yazi"
 note_fedora = "not in stock Fedora: needs the Terra repo (https://terra.fyralabs.com/)"
 manual  = "see https://yazi-rs.github.io/docs/installation"
+
+[packages.yazi.recipe]
+kind        = "apt-repo"
+key_url     = "https://yazi-rs.github.io/builds/yazi-keyring.gpg"
+key_sha256  = "3da842333fc9ec420e404772267a2df4e7fdcee11396820bcf8eae93760d7f26"
+dearmor     = false
+key_dest    = "/usr/share/keyrings/yazi-keyring.gpg"
+source_file = "/etc/apt/sources.list.d/yazi.list"
+source      = "deb [signed-by=/usr/share/keyrings/yazi-keyring.gpg] https://yazi-rs.github.io/builds/ stable main"
+package     = "yazi"
 
 [packages.starship]
 desc    = "shell prompt"
@@ -140,6 +208,10 @@ bin       = "cliphist"
 fedora    = "cliphist"
 debian    = "cliphist"
 arch      = "cliphist"
+
+[packages.cliphist.recipe]
+kind = "dnf-copr"
+name = "sdegler/hyprland"
 
 [packages.wl-clipboard]
 desc     = "wl-copy / wl-paste"
@@ -272,6 +344,16 @@ debian  = ""
 arch    = "gum"
 manual  = "charm apt repo: https://github.com/charmbracelet/gum#installation"
 
+[packages.gum.recipe]
+kind        = "apt-repo"
+key_url     = "https://repo.charm.sh/apt/gpg.key"
+key_sha256  = "bfccddb028d4d6ad5758fc9c9778337fb446a8e5fb270894011616963e9a9c8a"
+dearmor     = true
+key_dest    = "/etc/apt/keyrings/charm.gpg"
+source_file = "/etc/apt/sources.list.d/charm.list"
+source      = "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *"
+package     = "gum"
+
 [packages.age]
 desc    = "secrets (profile=personal only)"
 section = "Optional"
@@ -291,6 +373,13 @@ fedora  = ""
 debian  = ""
 arch    = "ttf-material-symbols-variable"
 manual  = "download from https://fonts.google.com/icons, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f`"
+check   = "font:Material Symbols Rounded"
+
+[packages.font-material-symbols.recipe]
+kind  = "fonts"
+files = [
+  { url = "https://fonts.gstatic.com/s/materialsymbolsrounded/v375/syl0-zNym6YjUruM-QrEh7-nyTnjDwKNJ_190FjpZIvDmUSVOK7BDB_Qb9vUSzq3wzLK-P0J-V_Zs-QtQth3-jOcbTCVpeRL2w5rwZu2rIelXxI.ttf", sha256 = "57383ccf3bcb68235504b42187295cd9aca0fef9977685d033cbcddafc98ed3b", name = "MaterialSymbolsRounded.ttf" },
+]
 
 [packages.font-rubik]
 desc    = "Rubik (UI text)"
@@ -300,6 +389,13 @@ fedora  = "google-rubik-fonts"
 debian  = ""
 arch    = ""
 manual  = "download from https://fonts.google.com/specimen/Rubik, copy the .ttf into ~/.local/share/fonts, run `fc-cache -f`"
+check   = "font:Rubik"
+
+[packages.font-rubik.recipe]
+kind  = "fonts"
+files = [
+  { url = "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/rubik/Rubik%5Bwght%5D.ttf", sha256 = "1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88", name = "Rubik.ttf" },
+]
 
 [packages.font-caskaydia]
 desc    = "CaskaydiaCove Nerd Font Mono (terminal)"
@@ -309,3 +405,12 @@ fedora  = ""
 debian  = ""
 arch    = "ttf-cascadia-code-nerd"
 manual  = "download CascadiaCode.zip from https://github.com/ryanoasis/nerd-fonts/releases, unzip into ~/.local/share/fonts, run `fc-cache -f` (Fedora's cascadia-code-nf-fonts uses a different family name, so it does not satisfy the check)"
+check   = "font:CaskaydiaCove Nerd Font Mono"
+
+[packages.font-caskaydia.recipe]
+kind  = "fonts"
+files = [
+  { url = "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/CascadiaCode.zip", sha256 = "1298bf92698afa06185cf1d05e6ae05f2d8a1e8c3cb45ddf4c3035168ab342a1", members = [
+      "CaskaydiaCoveNerdFontMono-Regular.ttf", "CaskaydiaCoveNerdFontMono-Bold.ttf",
+      "CaskaydiaCoveNerdFontMono-Italic.ttf", "CaskaydiaCoveNerdFontMono-BoldItalic.ttf" ] },
+]

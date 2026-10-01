@@ -52,6 +52,7 @@ Hyprland itself still starts fine.
 
 | What | Fedora (`dnf`) | Debian family (`apt`) | Arch (`pacman`) |
 | ---- | -------------- | --------------------- | --------------- |
+| Grootshell (bar, notifications, wallpaper): the Quickshell config this rice ships with | git clone -b rice https://github.com/44lain/grootshell ~/.config/quickshell/grootshell | git clone -b rice https://github.com/44lain/grootshell ~/.config/quickshell/grootshell | git clone -b rice https://github.com/44lain/grootshell ~/.config/quickshell/grootshell |
 | wallpaper -> colour palette | cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first) | cargo install matugen (needs Rust/cargo; on Debian family: sudo apt install cargo first) | `matugen` |
 | Quickshell (runs grootshell: bar, notifications, wallpaper) | COPR: sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell | `quickshell` | `quickshell` |
 

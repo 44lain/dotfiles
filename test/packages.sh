@@ -32,6 +32,40 @@ for key, p in data.items():
     for k, v in p.items():
         if isinstance(v, str) and ("\x1f" in v or "\n" in v):
             errs.append(f"{key}.{k}: control character in value")
+KINDS = {
+    "release-binary": {"url", "sha256", "member", "dest"},
+    "fonts": {"files"},
+    "git-clone": {"url", "branch", "dest"},
+    "apt-repo": {"key_url", "key_sha256", "key_dest", "source_file", "source", "package"},
+    "dnf-copr": {"name"},
+}
+import re as _re
+for key, p in data.items():
+    chk = p.get("check", "")
+    if chk and not _re.fullmatch(r"(font|path):.+", chk):
+        errs.append(f"{key}: check must look like 'font:<Family>' or 'path:<path>'")
+    if not p.get("bin") and not chk and "recipe" in p:
+        errs.append(f"{key}: has a recipe but no bin/check, so the scan could never see it installed")
+    r = p.get("recipe")
+    if r is None:
+        continue
+    kind = r.get("kind")
+    if kind not in KINDS:
+        errs.append(f"{key}: recipe kind {kind!r} unknown")
+        continue
+    for field in KINDS[kind]:
+        if field not in r:
+            errs.append(f"{key}: recipe ({kind}) lacks {field}")
+    for field in ("sha256", "key_sha256"):
+        if field in r and not _re.fullmatch(r"[0-9a-f]{64}", r[field]):
+            errs.append(f"{key}: recipe {field} is not a 64-char hex digest")
+    for f in r.get("files", []):
+        if not _re.fullmatch(r"[0-9a-f]{64}", f.get("sha256", "")):
+            errs.append(f"{key}: a fonts file has no valid sha256")
+        if not f.get("url", "").startswith("https://"):
+            errs.append(f"{key}: a fonts file url must be https")
+    if "url" in r and not r["url"].startswith("https://"):
+        errs.append(f"{key}: recipe url must be https")
 print("\n".join(errs))
 sys.exit(1 if errs else 0)
 PY
