@@ -42,6 +42,16 @@ class Plan(unittest.TestCase):
         steps = model.build_plan(statuses, {"a", "b"}, "fedora")
         self.assertEqual([s.kind for s in steps].count("repo"), 1)
 
+    def test_repo_dependent_names_get_their_own_install_step_after_the_repo_step(self):
+        r = {"kind": "apt-repo", "source_file": "/x"}
+        statuses = [st("kitty"), st("gum", repo=True, recipe=r), st("rofi")]
+        steps = model.build_plan(statuses, {"kitty", "gum", "rofi"}, "debian")
+        self.assertEqual([s.kind for s in steps], ["repo", "packages", "packages"])
+        self.assertEqual(steps[1].commands, [["apt-get", "install", "-y", "kitty", "rofi"]])
+        self.assertEqual(steps[2].commands, [["apt-get", "install", "-y", "gum"]])
+        self.assertEqual(steps[2].items, ["gum"])
+        self.assertNotEqual(steps[1].id, steps[2].id)
+
     def test_pacman_command(self):
         steps = model.build_plan([st("a")], {"a"}, "arch")
         self.assertEqual(steps[0].commands, [["pacman", "-S", "--needed", "--noconfirm", "a"]])
@@ -74,6 +84,30 @@ class Simulate(unittest.TestCase):
     def test_dnf_assumeno_abort_counts_as_ok(self):
         env = make_env(outputs={"dnf install --assumeno kitty": cp(1, "Operation aborted by the user.\n")})
         self.assertEqual(model.simulate(self.step("fedora"), "fedora", env)[0], "ok")
+
+    def test_the_dry_run_gets_five_minutes_and_the_c_locale(self):
+        env = make_env(outputs={"apt-get -s install kitty": cp(0, "Inst kitty\n")})
+        model.simulate(self.step(), "debian", env)
+        self.assertEqual(env.kwargs[0].get("timeout"), 300)
+        self.assertEqual(env.kwargs[0]["env"]["LC_ALL"], "C")
+        for fam, line in (("fedora", "dnf install --assumeno kitty"), ("arch", "pacman -Sp kitty")):
+            env = make_env(outputs={line: cp(0, "")})
+            model.simulate(self.step(fam), fam, env)
+            self.assertEqual((env.kwargs[0].get("timeout"), env.kwargs[0]["env"]["LC_ALL"]), (300, "C"))
+
+    def test_a_timeout_is_its_own_status_not_a_failure(self):
+        env = make_env(outputs={"dnf install --assumeno kitty": cp(127, "", "timeout")})
+        self.assertEqual(model.simulate(self.step("fedora"), "fedora", env)[0], "timeout")
+        env = make_env(outputs={"dnf install --assumeno kitty": cp(127, "", "failed")})
+        self.assertEqual(model.simulate(self.step("fedora"), "fedora", env)[0], "fail")
+
+    def test_default_run_marks_a_timeout(self):
+        import subprocess
+        from unittest import mock
+        with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired(["x"], 1)):
+            self.assertEqual(model._default_run(["x"]).stderr, "timeout")
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError):
+            self.assertEqual(model._default_run(["x"]).stderr, "failed")
 
     def test_nothing_to_simulate(self):
         step = model.Step(id="p", kind="packages", title_key="step.packages", title_args={},

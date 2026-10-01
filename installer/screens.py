@@ -211,7 +211,7 @@ def plan_screen(ui, s):
         ui.info(t("plan.nothing_selected"))
         return IDX["configure"]
     plan = model.build_plan(s.statuses, set(picked), s.family)
-    failed = False
+    failed = timed_out = False
     rows = []  # the whole plan is table rows: the user can scroll it (messages cannot be)
     for step in plan:
         rows.append(["• " + t(step.title_key, **step.title_args)])
@@ -223,6 +223,9 @@ def plan_screen(ui, s):
             failed = True
             rows.append(["    FAIL " + t("plan.sim_fail")])
             rows += [["         " + line] for line in text.splitlines()]
+        elif status == "timeout":
+            timed_out = True
+            rows.append(["    ...  " + t("plan.sim_timeout")])
         rows.append([""])
     r = ui.table([t("plan.title")], rows)
     if r is BACK or r is CANCEL:
@@ -230,6 +233,8 @@ def plan_screen(ui, s):
     ui.info(t("plan.summary", n=len(plan)))
     if failed:
         ui.warn(t("plan.sim_failed_warn"))
+    if timed_out:
+        ui.warn(t("plan.sim_timeout"))
     ui.warn(t("plan.no_revert"))
     c = ui.confirm(t("plan.confirm"), default=False)
     if c is CANCEL:
@@ -250,6 +255,7 @@ def install_screen(ui, s):
             ui.error(t("install.sudo_failed"))
             return "cancel"
     ok = skipped = failed = 0
+    failed_titles = []
     for step in s.plan:
         title = t(step.title_key, **step.title_args)
         reauth = 0
@@ -278,7 +284,8 @@ def install_screen(ui, s):
                     reauth = 0
                     continue
                 if c == "skip":
-                    skipped += 1
+                    failed += 1  # skipped AFTER a failure: it did not get installed
+                    failed_titles.append(title)
                     break
                 # abort, BACK and CANCEL all stop the installation
                 ui.warn(t("install.aborted"))
@@ -288,6 +295,8 @@ def install_screen(ui, s):
                 s.ctx.log = old
     s.plan = []  # done: revisiting this screen must never re-run anything
     ui.info(t("install.summary", ok=ok, skipped=skipped, failed=failed))
+    for title in failed_titles:
+        ui.error(t("install.failed_item", title=title))
     ui.info(t("install.log", path=s.log_path))
     return "next"
 

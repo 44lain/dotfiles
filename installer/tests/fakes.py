@@ -13,9 +13,11 @@ def make_env(which=(), outputs=None, exists=(), home="/home/t", machine="x86_64"
     Unknown commands return rc 127. Every call is recorded in env.calls."""
     outputs = outputs or {}
     calls = []
+    kwargs = []
 
     def run(argv, **kw):
         calls.append(list(argv))
+        kwargs.append(kw)
         line = " ".join(argv)
         for prefix, result in outputs.items():
             if line.startswith(prefix):
@@ -30,4 +32,5 @@ def make_env(which=(), outputs=None, exists=(), home="/home/t", machine="x86_64"
         machine=lambda: machine,
     )
     env.calls = calls
+    env.kwargs = kwargs  # the keyword arguments of each call, parallel to env.calls
     return env

@@ -260,3 +260,12 @@ note_debian = "ignored when manual exists"
         self.assertEqual(out["hypr3"].manual, "do it by hand")
         fed = {s.key: s for s in model.scan(pk, "fedora", make_env())}
         self.assertEqual(fed["hypr2"].manual, "")  # another family's note is not shown
+
+
+class Locale(unittest.TestCase):
+    def test_apt_probes_run_with_the_c_locale(self):
+        env = make_env(outputs={"apt-cache madison kitty": cp(0, " kitty | 1.0 | https://x stable/main amd64 Packages\n"),
+                                "apt-cache policy kitty": cp(0, "Candidate: 1.0\n")})
+        model.apt_lookup("kitty", env)
+        self.assertEqual(len(env.kwargs), 2)
+        self.assertTrue(all(kw["env"]["LC_ALL"] == "C" for kw in env.kwargs))

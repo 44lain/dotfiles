@@ -105,7 +105,36 @@ class DescribeStep(unittest.TestCase):
         s = model.Status(key="x", desc="x", required=True, state="missing", source="distro",
                          name="x", repo=True, recipe=r)
         step = model.build_plan([s], {"x"}, "fedora")[0]
-        self.assertEqual(recipes.describe_step(step, "/h"), ["dnf copr enable -y a/b"])
+        self.assertEqual(recipes.describe_step(step, "/h"), ["sudo dnf copr enable -y a/b"])
+
+
+    def test_apt_repo_lists_every_command_in_order_with_sudo(self):
+        lines = recipes.describe_step(model.Step(
+            id="r", kind="repo", title_key="step.repo", title_args={}, commands=[], items=[], sudo=True,
+            recipe=dict(APT, key_url="https://example.invalid/key.asc"), names=[], flag="", sim_names=[]), "/h")
+        self.assertIn("https://example.invalid/key.asc", lines[0])
+        self.assertIn(APT["key_sha256"], lines[1])  # the whole checksum, not a prefix
+        self.assertTrue(lines[2].startswith("gpg --dearmor"))
+        self.assertTrue(lines[3].startswith("sudo install -Dm644") and lines[3].endswith(APT["key_dest"]))
+        self.assertTrue(lines[4].startswith("sudo install -Dm644") and APT["source_file"] in lines[4])
+        self.assertIn(APT["source"], lines[4])
+        self.assertEqual(lines[5], "sudo apt-get update")
+        self.assertEqual(len(lines), 6)
+
+    def test_apt_repo_without_dearmor_has_no_gpg_line(self):
+        spec = dict(APT, key_url="u", dearmor=False)
+        lines = recipes.describe(spec, "/h")
+        self.assertFalse(any(x.startswith("gpg --dearmor") for x in lines))
+        self.assertEqual(len(lines), 5)
+
+
+class StreamRun(unittest.TestCase):
+    def test_children_never_read_the_terminal_and_never_prompt(self):
+        cp_ = recipes.stream_run(["sh", "-c",
+                                  'echo "$GIT_TERMINAL_PROMPT $DEBIAN_FRONTEND"; read x; echo "eof=$?"'])
+        self.assertEqual(cp_.returncode, 0)
+        self.assertIn("0 noninteractive", cp_.stdout)
+        self.assertIn("eof=1", cp_.stdout)  # stdin is /dev/null: read hits EOF at once
 
 
 if __name__ == "__main__":

@@ -88,6 +88,7 @@ MESSAGES = {
     "step.recipe": "{desc}",
     "plan.sim_ok": "Dry run passed.",
     "plan.sim_fail": "Dry run found a problem:",
+    "plan.sim_timeout": "Dry run could not finish in time, so this step is unverified. Continuing is safe; it just was not checked.",
     "plan.sim_failed_warn": "The dry run reported a problem above. You can still continue, but the install will probably fail.",
     "plan.summary": "{n} step(s) planned. The list above scrolls; read it before you confirm.",
     "plan.no_revert": "Installed packages are NOT removed by rice rollback or rice uninstall. Applied configuration can be reverted with rice rollback.",
@@ -106,6 +107,7 @@ MESSAGES = {
     "install.skip": "Skip it and continue",
     "install.abort": "Stop here",
     "install.summary": "Installed: {ok} · skipped: {skipped} · failed: {failed}",
+    "install.failed_item": "Failed step: {title}",
     "install.log": "Full log: {path}",
     "install.aborted": "Stopped. Run rice tui again to continue where this left off.",
     # screen 7

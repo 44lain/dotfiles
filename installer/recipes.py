@@ -42,8 +42,10 @@ def _fetch(url: str, dest: str) -> None:
 def stream_run(argv, on_line=None):
     """Run argv, feed each output line to on_line, return a CompletedProcess."""
     try:
-        p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, bufsize=1, errors="replace")
+        # a child must never read the terminal or draw a prompt over the curses screen
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "DEBIAN_FRONTEND": "noninteractive"}
+        p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, env=env, text=True, bufsize=1, errors="replace")
     except (FileNotFoundError, PermissionError):
         return subprocess.CompletedProcess(argv, 127, f"{argv[0]}: command not found", "")
     out = []
@@ -216,12 +218,16 @@ def describe(spec: dict, home: str) -> list[str]:
     if kind == "git-clone":
         return [f"git clone --branch {spec['branch']} {spec['url']} {_expand(spec['dest'], home)}"]
     if kind == "apt-repo":
-        return [f"download the signing key {spec['key_url']} (sha256 {spec['key_sha256'][:12]}…)",
-                f"install it as {spec['key_dest']}",
-                f"write {spec['source_file']}: {spec['source']}",
-                "apt-get update"]
+        key = "key.gpg" if spec.get("dearmor") else "key"
+        lines = [f"download the signing key {spec['key_url']}",
+                 f"verify its sha256 is {spec['key_sha256']} (nothing privileged runs before this passes)"]
+        if spec.get("dearmor"):
+            lines.append("gpg --dearmor --yes -o key.gpg key")
+        return lines + [f"sudo install -Dm644 {key} {spec['key_dest']}",
+                        f"sudo install -Dm644 source {spec['source_file']}   (the file holds exactly: {spec['source']})",
+                        "sudo apt-get update"]
     if kind == "dnf-copr":
-        return [f"dnf copr enable -y {spec['name']}"]
+        return [f"sudo dnf copr enable -y {spec['name']}"]
     raise RecipeError(f"unknown recipe kind {kind!r}")
 
 

@@ -19,7 +19,7 @@ class DefaultRun(unittest.TestCase):
         result = _default_run(["sleep", "5"], timeout=0.2)
         self.assertEqual(result.returncode, 127)
         self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "failed")
+        self.assertEqual(result.stderr, "timeout")
 
     def test_bad_shebang_returns_127_without_raising(self):
         """A bad-shebang executable should return 127, not raise."""

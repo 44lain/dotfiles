@@ -38,10 +38,17 @@ def os_family(path: str | None = None) -> str:
     return "unknown"
 
 
+def c_locale() -> dict:
+    """Environment for probes whose output is parsed: messages in English."""
+    return {**os.environ, "LC_ALL": "C"}
+
+
 def _default_run(argv, **kw):
     try:
         return subprocess.run(argv, capture_output=True, text=True, timeout=kw.pop("timeout", 30), **kw)
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(argv, 127, "", "timeout")
+    except OSError:
         return subprocess.CompletedProcess(argv, 127, "", "failed")
 
 
@@ -105,7 +112,7 @@ def apt_lookup(pkg: str, env: Env):
     version. flag is "-t <suite>" when the newest version is not the default
     candidate (backports). Read-only, no network, no root."""
     best = suite = None
-    for line in env.run(["apt-cache", "madison", pkg]).stdout.splitlines():
+    for line in env.run(["apt-cache", "madison", pkg], env=c_locale()).stdout.splitlines():
         parts = [x.strip() for x in line.split("|")]
         if len(parts) < 3 or not parts[1] or "dpkg/status" in parts[2]:
             continue
@@ -115,7 +122,7 @@ def apt_lookup(pkg: str, env: Env):
             best, suite = parts[1], s
     if best is None:
         return None
-    pol = env.run(["apt-cache", "policy", pkg]).stdout
+    pol = env.run(["apt-cache", "policy", pkg], env=c_locale()).stdout
     m = re.search(r"^\s*Candidate:\s*(\S+)", pol, re.M)
     flag = "" if (m and m.group(1) == best) else f"-t {suite}"
     return best, flag
@@ -253,13 +260,13 @@ def build_plan(statuses: list[Status], selected, family: str) -> list[Step]:
                               title_args={"name": ident[1]}, commands=[], items=[s.key],
                               sudo=True, recipe=s.recipe, names=[], flag="", sim_names=[]))
     groups: dict = {}
-    for s in chosen:  # 2. distro packages, fewest commands: required first, one per suite flag
-        if s.source == "distro":
-            groups.setdefault((not s.required, s.flag), []).append(s)
-    for (optional, flag), items in sorted(groups.items()):
+    for s in chosen:  # 2. distro packages, fewest commands: required first, one per suite flag;
+        if s.source == "distro":  # names that need a repository get their own command
+            groups.setdefault((not s.required, s.flag, s.repo), []).append(s)
+    for (optional, flag, needs_repo), items in sorted(groups.items()):
         names = list(dict.fromkeys(i.name for i in items))
         steps.append(Step(
-            id="pkgs:" + (flag or "default") + (":opt" if optional else ""), kind="packages",
+            id="pkgs:" + (flag or "default") + (":opt" if optional else "") + (":repo" if needs_repo else ""), kind="packages",
             title_key="step.packages",
             title_args={"n": len(names), "suite": f" ({flag})" if flag else ""},
             commands=[_install_cmd(family, flag, names)], items=[i.key for i in items], sudo=True,
@@ -278,7 +285,7 @@ def _tail(text: str, n: int = 6) -> str:
 
 
 def simulate(step: Step, family: str, env: Env):
-    """('ok'|'fail'|'skipped', output tail). Dry run of the distro package step."""
+    """('ok'|'fail'|'timeout'|'skipped', output tail). Dry run of the distro package step."""
     if step.kind != "packages" or not step.sim_names:
         return ("skipped", "")
     f = step.flag.split() if step.flag else []
@@ -290,8 +297,10 @@ def simulate(step: Step, family: str, env: Env):
         argv = ["pacman", "-Sp", *step.sim_names]
     else:
         return ("skipped", "")
-    cp = env.run(argv)
+    cp = env.run(argv, timeout=300, env=c_locale())  # dnf may download metadata first
     out = (cp.stdout or "") + (cp.stderr or "")
+    if cp.returncode == 127 and (cp.stderr or "") == "timeout":
+        return ("timeout", "")
     if cp.returncode == 0 or (family == "fedora" and "abort" in out.lower()):
         return ("ok", _tail(out))
     return ("fail", _tail(out))

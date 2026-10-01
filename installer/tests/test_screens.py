@@ -256,6 +256,17 @@ class Plan(Base):
         self.assertIn("Unable to correct problems", " ".join(ui.table_lines()))
         self.assertIn("probably fail", ui.text_of("warn"))
 
+    def test_a_dry_run_timeout_is_a_neutral_warning_not_an_error(self):
+        env = make_env(home=self.home, which={"kitty"}, outputs={
+            "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
+            "apt-cache policy rofi": cp(0, "Candidate: 1.7\n"),
+            "apt-get -s install rofi": cp(127, "", "timeout")})
+        ui = FakeUI(["rofi"], "next", True)
+        self.assertEqual(screens.plan_screen(ui, self.prepared(env)), "next")
+        self.assertIn("could not finish in time", ui.text_of("warn"))
+        self.assertNotIn("probably fail", ui.text_of("warn"))
+        self.assertEqual(ui.text_of("error"), "")
+
     def test_required_items_are_preselected(self):
         ui = FakeUI(CANCEL)
         screens.plan_screen(ui, self.prepared())
@@ -279,6 +290,14 @@ class Install(Base):
         self.assertIn(["sudo", "-n", "apt-get", "install", "-y", "rofi"], self.calls)
         self.assertIn("Installed: 1", ui.text_of("info") + ui.text_of("success"))
         self.assertIn(["sudo", "-v"], ui.suspended)
+
+    def test_a_step_skipped_after_a_failure_counts_as_failed_and_is_listed(self):
+        bad = lambda argv, on_line=None: cp(100, "E: boom\n")
+        ui = FakeUI("skip")
+        self.assertEqual(screens.install_screen(ui, self.planned(bad)), "next")
+        summary = ui.text_of("info")
+        self.assertIn("Installed: 0 · skipped: 0 · failed: 1", summary)
+        self.assertIn("Install 1 package(s)", ui.text_of("error").split("Failed step")[-1])
 
     def test_failure_offers_retry_skip_abort(self):
         # Review Focus 5: a failing step never produces a traceback
