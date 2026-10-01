@@ -5,6 +5,7 @@
 README.md
 LICENSE
 Makefile
+.gitleaks.toml
 docs
 test
 install.sh

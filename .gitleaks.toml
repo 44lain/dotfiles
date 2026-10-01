@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "pinned sha256 digests of public downloads in packages.toml are not secrets"
+paths = ['''\.chezmoidata/packages\.toml''']
+condition = "AND"
+regexes = ['''[0-9a-f]{64}''']

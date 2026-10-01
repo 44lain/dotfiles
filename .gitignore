@@ -16,6 +16,7 @@
 !/.chezmoi.toml.tmpl
 !/README.md
 !/Makefile
+!/.gitleaks.toml
 !/LICENSE
 
 # --- CI ----------------------------------------------------------------------
