@@ -10,7 +10,10 @@ flunk() { printf '  FAIL %s\n' "$1"; fail=1; }
 
 sandbox=$(mktemp -d)
 trap 'rm -rf "${sandbox:?}"' EXIT
-home="$sandbox/home"; mkdir -p "$home/.local/share/chezmoi/.git" "$sandbox/bin"
+home="$sandbox/home"; mkdir -p "$home/.local/share/chezmoi/.git" "$home/.local/share/chezmoi/installer" "$sandbox/bin"
+: > "$home/.local/share/chezmoi/installer/__main__.py"
+# shellcheck disable=SC2016 # the generated fake script must expand $1/$3 itself, later
+printf '#!/bin/sh\necho "${FAKE_UID:-1000}"\n' > "$sandbox/bin/id"; chmod +x "$sandbox/bin/id"
 printf 'ID=fedora\n' > "$sandbox/os-release"
 log="$sandbox/calls.log"; : > "$log"
 
@@ -121,7 +124,10 @@ else
 	flunk "install.sh non-empty source dir (rc=$rc out=<$out>)"
 fi
 emptydir="$sandbox/emptydir"; mkdir -p "$emptydir"; : > "$log"
+# shellcheck disable=SC2016 # the generated fake script must expand $1/$3 itself, later
+printf '#!/bin/sh\necho "git $*" >> "%s"\ncase $1 in clone) /bin/mkdir -p "$3/installer"; : > "$3/installer/__main__.py" ;; esac\nexit 0\n' "$log" > "$sandbox/bin/git"
 out=$(CHEZMOI_SOURCE_DIR="$emptydir" run ""); rc=$?
+fake git 0
 if [ $rc -eq 0 ] && grep -q '^git clone' "$log"; then
 	pass "install.sh: empty source dir -> cloned into"
 else
@@ -149,4 +155,44 @@ else
 	flunk "install.sh ~/.local/bin on PATH (rc=$rc out=<$out>)"
 fi
 rm -f "$home/.local/bin/chezmoi"
+
+# 12. root without sudo: no sudo prefix is printed or used
+fake chezmoi 0; rm -f "$sandbox/bin/sudo" "$sandbox/bin/git"; fake dnf 0; : > "$log"
+out=$(FAKE_UID=0 run "y
+"); rc=$?
+if [ $rc -eq 0 ] && grep -q '^dnf install -y .*git' "$log" && ! printf '%s' "$out" | grep -q 'sudo'; then
+	pass "install.sh: root -> no sudo prefix (works without sudo installed)"
+else
+	flunk "install.sh root without sudo (rc=$rc out=<$out> log=<$(cat "$log")>)"
+fi
+# 13. not root and no sudo: clear message, nothing installed
+: > "$log"
+out=$(FAKE_UID=1000 run "y
+"); rc=$?
+if [ $rc -ne 0 ] && printf '%s' "$out" | grep -qi 'sudo' && ! grep -q '^dnf' "$log"; then
+	pass "install.sh: not root and no sudo -> clear message"
+else
+	flunk "install.sh no sudo (rc=$rc out=<$out>)"
+fi
+fake sudo 0; fake git 0
+
+# 14. the source dir is another repo: one-line warning; no installer package: clear error
+other="$sandbox/other"; mkdir -p "$other/.git"; : > "$log"
+fake git 0 "https://example.com/someone/other-project.git"
+out=$(CHEZMOI_SOURCE_DIR="$other" run ""); rc=$?
+if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q 'not the dotfiles repo' && printf '%s' "$out" | grep -q 'installer/__main__.py' && ! printf '%s' "$out" | grep -q 'No module named'; then
+	pass "install.sh: foreign repo -> warning plus clear error, no 'No module named'"
+else
+	flunk "install.sh foreign repo (rc=$rc out=<$out>)"
+fi
+fake git 0
+
+# 11. the hard re-ignore of secret-looking names beats the installer allowlist
+touch "$repo/installer/token_x.py"
+if git -C "$repo" check-ignore -q installer/token_x.py && ! git -C "$repo" check-ignore -q installer/model.py; then
+	pass ".gitignore: installer/token_x.py stays ignored, installer/model.py is tracked"
+else
+	flunk ".gitignore: allowlist must sit above the hard re-ignore block"
+fi
+rm -f "$repo/installer/token_x.py"
 exit $fail

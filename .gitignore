@@ -86,6 +86,12 @@
 # --- personal ~/bin scripts -------------------------------------------
 !/bin/executable_*.sh
 
+# --- installer (guided TUI) -------------------------------------------------
+!/install.sh
+!/installer/*.py
+!/installer/messages/*.py
+!/installer/tests/*.py
+
 # ---------------------------------------------------------------------------
 # Hard re-ignore. These patterns come last so they win over every rule above,
 # even if a file is moved into an allowed directory by mistake.
@@ -110,9 +116,3 @@
 **/.bash_history
 **/known_hosts
 **/mcp.json
-
-# --- installer (guided TUI) -------------------------------------------------
-!/install.sh
-!/installer/*.py
-!/installer/messages/*.py
-!/installer/tests/*.py

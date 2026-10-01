@@ -58,10 +58,16 @@ have chezmoi || need_chezmoi=1
 
 pm=""
 if [ -n "$missing" ]; then
+	# root needs no sudo (and may not have it); anyone else needs it
+	asroot=""
+	if [ "$(id -u)" -ne 0 ]; then
+		have sudo || die "sudo is not installed, so I cannot install$missing for you; install it yourself (as root) and run this again."
+		asroot="sudo "
+	fi
 	case $fam in
-		fedora) pm="sudo dnf install -y" ;;
-		debian) pm="sudo apt-get install -y" ;;
-		arch)   pm="sudo pacman -S --needed --noconfirm"
+		fedora) pm="${asroot}dnf install -y" ;;
+		debian) pm="${asroot}apt-get install -y" ;;
+		arch)   pm="${asroot}pacman -S --needed --noconfirm"
 			missing=$(printf '%s' "$missing" | sed 's/python3/python/') ;;
 		*) die "distro not recognised; install$missing yourself and run this again." ;;
 	esac
@@ -95,6 +101,14 @@ if [ ! -d "$SRC/.git" ]; then
 	done
 	git clone "$REPO_URL" "$SRC"
 fi
+
+# an existing checkout must be this repo and carry the installer
+origin=$(git -C "$SRC" config --get remote.origin.url 2>/dev/null || true)
+case $origin in
+	""|*/dotfiles|*/dotfiles.git|*:dotfiles|*:dotfiles.git) ;;
+	*) say "install.sh: warning: $SRC has origin $origin, which is not the dotfiles repo." ;;
+esac
+[ -f "$SRC/installer/__main__.py" ] || die "$SRC/installer/__main__.py is missing: that is not a checkout of the dotfiles repo with the installer. Move it away (or set CHEZMOI_SOURCE_DIR) and run this again."
 
 cd "$SRC"
 exec python3 -m installer "$@" < "$TTY"

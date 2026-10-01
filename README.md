@@ -55,6 +55,7 @@ If you would rather read the script first:
 It opens a terminal interface (English and Português). Nothing is installed without
 showing you the exact commands first and asking. Afterwards, `rice tui` opens it again
 (it re-scans, so only what is still missing is offered).
+Arch: package names resolve but the install flow is not verified.
 
 **Leaving the rice.** Installing it only adds a Hyprland entry to your login screen; to go
 back to your previous desktop, log out and pick it in the session selector. Packages,
