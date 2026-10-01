@@ -20,7 +20,8 @@ def os_family(path: str | None = None) -> str:
     """Same rules as the copy in executable_rice-doctor: ID, then ID_LIKE."""
     path = path or os.environ.get("RICE_OS_RELEASE", "/etc/os-release")
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
     except OSError:
         return "unknown"
     kv = {}
@@ -39,9 +40,9 @@ def os_family(path: str | None = None) -> str:
 
 def _default_run(argv, **kw):
     try:
-        return subprocess.run(argv, capture_output=True, text=True, **kw)
-    except (FileNotFoundError, PermissionError):
-        return subprocess.CompletedProcess(argv, 127, "", "command not found")
+        return subprocess.run(argv, capture_output=True, text=True, timeout=kw.pop("timeout", 30), **kw)
+    except (OSError, subprocess.TimeoutExpired):
+        return subprocess.CompletedProcess(argv, 127, "", "failed")
 
 
 @dataclass
