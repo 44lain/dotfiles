@@ -160,5 +160,54 @@ class Describe(unittest.TestCase):
         self.assertIn("git clone --branch rice https://example.invalid/g /h/.config/quickshell/grootshell", text)
 
 
+class StreamRun(unittest.TestCase):
+    def test_streams_output_and_returns_combined_stdout(self):
+        """Test that stream_run properly collects output and calls on_line callback."""
+        lines = []
+        cp = recipes.stream_run(["sh", "-c", "echo one; echo two"], on_line=lines.append)
+        self.assertEqual(lines, ["one", "two"])
+        self.assertEqual(cp.returncode, 0)
+        self.assertIn("one", cp.stdout)
+        self.assertIn("two", cp.stdout)
+
+    def test_nonexistent_command_returns_127_without_raising(self):
+        """Test that nonexistent command returns rc 127 without raising."""
+        cp = recipes.stream_run(["this-command-definitely-does-not-exist-xyz-123"])
+        self.assertEqual(cp.returncode, 127)
+        self.assertIn("command not found", cp.stdout)
+
+    def test_invalid_utf8_output_handled_gracefully(self):
+        """Test that invalid UTF-8 output is handled gracefully with errors=replace."""
+        # Use printf with octal escape to produce invalid UTF-8 byte
+        cp = recipes.stream_run(["sh", "-c", "printf '\\xff\\n'"])
+        # Should not raise UnicodeDecodeError, should return rc 0
+        self.assertEqual(cp.returncode, 0)
+        # The invalid byte should be replaced, not cause an exception
+        self.assertIsNotNone(cp.stdout)
+
+
+class Fetch(unittest.TestCase):
+    def test_malformed_url_raises_recipe_error_with_download_failed(self):
+        """Test that malformed URL raises RecipeError with 'download failed' message."""
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = os.path.join(tmp, "test")
+            with self.assertRaises(RecipeError) as cm:
+                recipes._fetch("not a url", dest)
+            self.assertIn("download failed", str(cm.exception))
+
+    def test_http_incomplete_read_raises_recipe_error_with_download_failed(self):
+        """Test that http.client.HTTPException raises RecipeError with 'download failed' message."""
+        import http.client
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = os.path.join(tmp, "test")
+            with mock.patch("urllib.request.urlopen") as mock_urlopen:
+                mock_urlopen.side_effect = http.client.IncompleteRead(b"x")
+                with self.assertRaises(RecipeError) as cm:
+                    recipes._fetch("http://example.invalid/test", dest)
+                self.assertIn("download failed", str(cm.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

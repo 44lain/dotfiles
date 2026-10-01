@@ -3,6 +3,7 @@ Every download is pinned (url + sha256) and verified BEFORE anything is written.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import os
 import shutil
 import subprocess
@@ -28,9 +29,13 @@ def _expand(path: str, home: str) -> str:
 
 def _fetch(url: str, dest: str) -> None:
     try:
-        with urllib.request.urlopen(url, timeout=60) as r, open(dest, "wb") as f:
-            shutil.copyfileobj(r, f)
-    except OSError as e:  # URLError, HTTPError and timeouts all derive from OSError
+        with urllib.request.urlopen(url, timeout=60) as r:
+            try:
+                with open(dest, "wb") as f:
+                    shutil.copyfileobj(r, f)
+            except OSError as e:
+                raise RecipeError(f"write failed: {dest}: {e}") from e
+    except (OSError, http.client.HTTPException, ValueError) as e:
         raise RecipeError(f"download failed: {url}: {e}") from e
 
 
@@ -38,15 +43,15 @@ def stream_run(argv, on_line=None):
     """Run argv, feed each output line to on_line, return a CompletedProcess."""
     try:
         p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, bufsize=1)
+                             text=True, bufsize=1, errors="replace")
     except (FileNotFoundError, PermissionError):
         return subprocess.CompletedProcess(argv, 127, f"{argv[0]}: command not found", "")
     out = []
-    for line in p.stdout:
-        out.append(line)
-        if on_line:
-            on_line(line.rstrip("\n"))
-    p.wait()
+    with p:
+        for line in p.stdout:
+            out.append(line)
+            if on_line:
+                on_line(line.rstrip("\n"))
     return subprocess.CompletedProcess(argv, p.returncode, "".join(out), "")
 
 
