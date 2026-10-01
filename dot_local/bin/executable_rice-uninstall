@@ -17,12 +17,35 @@ for arg in "$@"; do
 done
 
 state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+loader_marker=$state_home/rice/bashrc-loader
+
+remove_loader() {
+	# Only a loader that rice-onboard appended (marked block + state file) is
+	# ever removed; a loader the user wrote by hand has no marker and is left alone.
+	[ -f "$loader_marker" ] || return 0
+	grep -q '^# >>> rice bashrc.d loader >>>$' "$HOME/.bashrc" 2>/dev/null || { rm -f -- "$loader_marker"; return 0; }
+	local remove=0 reply
+	if [ "$yes" -eq 1 ]; then
+		remove=1
+	else
+		printf 'also remove the ~/.bashrc.d loader the rice added to ~/.bashrc? [y/N] '
+		read -r reply || reply=""
+		case $reply in y|Y|yes|YES) remove=1 ;; esac
+	fi
+	if [ "$remove" -eq 1 ]; then
+		sed -i '/^# >>> rice bashrc.d loader >>>$/,/^# <<< rice bashrc.d loader <<<$/d' "$HOME/.bashrc"
+		rm -f -- "$loader_marker"
+		echo "  removed the ~/.bashrc.d loader from ~/.bashrc"
+	fi
+}
+
 baseline_root=$state_home/rice/baseline
 baseline_manifest=$baseline_root/manifest
 baseline_files=$baseline_root/files
 
 if [ ! -s "$baseline_manifest" ]; then
 	echo "nothing to uninstall (no baseline recorded — rice apply was never run, or this already ran)"
+	remove_loader
 	exit 0
 fi
 
@@ -95,6 +118,7 @@ done
 # rice-uninstall is dot_local/bin/*) — removing its own directory entry
 # here is safe on Linux: the shell already has the file open and keeps
 # running from it until it exits.
+remove_loader
 rm -rf -- "$baseline_root"
 
 echo "done. chezmoi and its config were left untouched."

@@ -18,6 +18,28 @@ PATH=$self_dir:$PATH
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# --- flags (all optional; a flag that is absent keeps its interactive prompt) ---
+# Used by the guided installer (`rice tui`): it collects the answers itself and
+# calls this with them. With no flags nothing here changes.
+flag_profile="" flag_host="" flag_git_name="" flag_git_email=""
+flag_wallpaper="" flag_wallpaper_set=0 flag_accept=0 flag_loader=""
+need_value() { [ "$2" -ge 2 ] || { echo "rice-onboard: $1 needs a value" >&2; exit 2; }; }
+while [ $# -gt 0 ]; do
+	case $1 in
+		--profile)        need_value "$1" $#; flag_profile=$2; shift 2 ;;
+		--host)           need_value "$1" $#; flag_host=$2; shift 2 ;;
+		--git-name)       need_value "$1" $#; flag_git_name=$2; shift 2 ;;
+		--git-email)      need_value "$1" $#; flag_git_email=$2; shift 2 ;;
+		--wallpaper-path) need_value "$1" $#; flag_wallpaper=$2; flag_wallpaper_set=1; shift 2 ;;
+		--bashrc-loader)  need_value "$1" $#; flag_loader=$2; shift 2 ;;
+		--accept-detected) flag_accept=1; shift ;;
+		*) echo "rice-onboard: unknown argument '$1'" >&2; exit 2 ;;
+	esac
+done
+case $flag_profile in ""|personal|guest) ;; *) echo "rice-onboard: profile must be 'personal' or 'guest'" >&2; exit 2 ;; esac
+case $flag_loader in ""|yes|no) ;; *) echo "rice-onboard: --bashrc-loader must be yes or no" >&2; exit 2 ;; esac
+case $flag_host in *[!A-Za-z0-9_-]*) echo "rice-onboard: host name must match [A-Za-z0-9_-]+" >&2; exit 2 ;; esac
+
 # os_family — keep identical to the copy in executable_rice-doctor
 # (test/packages.sh checks it). RICE_OS_RELEASE is a test hook.
 os_family() {
@@ -140,14 +162,19 @@ chezmoi_config=$HOME/.config/chezmoi/chezmoi.toml
 
 # --- 2. init ---------------------------------------------------------------
 if [ ! -f "$chezmoi_config" ]; then
-	chezmoi init 44lain
+	src_dir=$(chezmoi source-path 2>/dev/null || true)
+	if [ -n "$flag_profile$flag_host" ] && [ -f "$src_dir/.chezmoi.toml.tmpl" ]; then
+		chezmoi init --promptDefaults   # answers come from the flags; never prompt twice
+	else
+		chezmoi init 44lain
+	fi
 fi
 
 # --- 3. git identity (machine-local: name + email) -------------------------
 git_local=$HOME/.config/git/local
 current_name=$(git config --get user.name 2>/dev/null || true)
-if [ -z "$current_name" ]; then
-	name=""
+if [ -n "$flag_git_name" ] || [ -z "$current_name" ]; then
+	name=$flag_git_name
 	while [ -z "$name" ]; do
 		name=$(ask "git name for this machine")
 	done
@@ -156,8 +183,8 @@ if [ -z "$current_name" ]; then
 	echo "git name set: $name (-> $git_local)"
 fi
 current_email=$(git config --get user.email 2>/dev/null || true)
-if [ -z "$current_email" ]; then
-	email=""
+if [ -n "$flag_git_email" ] || [ -z "$current_email" ]; then
+	email=$flag_git_email
 	while [ -z "$email" ]; do
 		email=$(ask "git email for this machine")
 	done
@@ -175,20 +202,23 @@ else
 	current_wallpaper=""
 	sed -i '/^\[data\]/a\    wallpaper_path = ""' "$chezmoi_config"
 fi
-if [ -z "$current_wallpaper" ]; then
+if [ "$flag_wallpaper_set" -eq 1 ]; then
+	wallpaper=$flag_wallpaper
+elif [ -z "$current_wallpaper" ]; then
 	wallpaper=$(ask "wallpaper path for hyprlock/hyprpaper (optional, Enter to skip — set later in $chezmoi_config)")
-	if [ -n "$wallpaper" ]; then
-		sed -i "s|^\([[:space:]]*\)wallpaper_path = .*|\1wallpaper_path = \"$wallpaper\"|" "$chezmoi_config"
-		echo "wallpaper path set: $wallpaper (-> $chezmoi_config)"
-	fi
+else
+	wallpaper=""
+fi
+if [ -n "$wallpaper" ]; then
+	sed -i "s|^\([[:space:]]*\)wallpaper_path = .*|\1wallpaper_path = \"$wallpaper\"|" "$chezmoi_config"
+	echo "wallpaper path set: $wallpaper (-> $chezmoi_config)"
 fi
 
 # --- 5. profile --------------------------------------------------------------
-profile=""
-while true; do
+profile=$flag_profile
+while [ -z "$profile" ]; do
 	profile=$(ask "profile [personal/guest]" guest)
-	case $profile in personal|guest) break ;; esac
-	echo "rice-onboard: profile must be 'personal' or 'guest'" >&2
+	case $profile in personal|guest) ;; *) echo "rice-onboard: profile must be 'personal' or 'guest'" >&2; profile="" ;; esac
 done
 
 # --- 6. host -----------------------------------------------------------------
@@ -200,6 +230,10 @@ mapfile -t existing_hosts < <(printf '%s' "$host_data" | jq -r '(.hosts // {}) |
 
 host_name=""
 is_new=0
+if [ -n "$flag_host" ]; then
+	host_name=$flag_host
+	is_known_host "$flag_host" || is_new=1
+fi
 while [ -z "$host_name" ]; do
 	choice=$(ask "host (known: ${existing_hosts[*]:-none}, or 'new')" new)
 	if [ "$choice" = new ]; then
@@ -227,14 +261,19 @@ done
 
 if [ "$is_new" -eq 1 ]; then
 	kb_layout=$(detect_kb_layout)
-	kb_layout=$(ask "keyboard layout (localectl)" "${kb_layout:-us}")
 	gpu=$(detect_gpu)
-	scale=$(ask "scale" 1)
 	monitors_toml=$(detect_monitors)
-	echo "detected monitors:"
-	echo "$monitors_toml"
-	if ! confirm "use this monitor block? (edit the written TOML by hand afterward if not)"; then
-		monitors_toml='  { output = "", mode = "preferred", position = "auto", scale = 1 },'
+	if [ "$flag_accept" -eq 1 ]; then
+		kb_layout=${kb_layout:-us}
+		scale=1
+	else
+		kb_layout=$(ask "keyboard layout (localectl)" "${kb_layout:-us}")
+		scale=$(ask "scale" 1)
+		echo "detected monitors:"
+		echo "$monitors_toml"
+		if ! confirm "use this monitor block? (edit the written TOML by hand afterward if not)"; then
+			monitors_toml='  { output = "", mode = "preferred", position = "auto", scale = 1 },'
+		fi
 	fi
 	gpu_env_toml=$(gpu_env_for "$gpu")
 
@@ -262,9 +301,10 @@ sed -i "s/^    host    = .*/    host    = \"$host_name\"/" "$chezmoi_config"
 # lacks the loader (idempotent).
 if [ -f "$HOME/.bashrc" ] && ! grep -q '\.bashrc\.d' "$HOME/.bashrc"; then
 	# shellcheck disable=SC2088  # literal ~ in a message, not a path
-	if confirm "~/.bashrc does not load ~/.bashrc.d (the rice's PATH and aliases live there). Append the loader?"; then
+	if [ "$flag_loader" = yes ] || { [ -z "$flag_loader" ] && confirm "~/.bashrc does not load ~/.bashrc.d (the rice's PATH and aliases live there). Append the loader?"; }; then
 		cat >> "$HOME/.bashrc" <<'HOOK'
 
+# >>> rice bashrc.d loader >>>
 # Load ~/.bashrc.d fragments (managed by dotfiles)
 if [ -d ~/.bashrc.d ]; then
     for rc in ~/.bashrc.d/*.sh; do
@@ -272,8 +312,13 @@ if [ -d ~/.bashrc.d ]; then
     done
     unset rc
 fi
+# <<< rice bashrc.d loader <<<
 HOOK
+		mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/rice"
+		: > "${XDG_STATE_HOME:-$HOME/.local/state}/rice/bashrc-loader"
 		echo "appended the ~/.bashrc.d loader to ~/.bashrc"
+	elif [ "$flag_loader" = no ]; then
+		echo "skipped the ~/.bashrc.d loader (as requested)"
 	else
 		echo "skipped — later: make bashrc-hook (from the repo)"
 	fi

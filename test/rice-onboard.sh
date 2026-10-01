@@ -190,4 +190,57 @@ else
 	flunk "onboard O7 (rc=$rc out=<$out>)"
 fi
 
+# --- F1. flags: guest + new host, nothing prompted, same files as the interactive path ---
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
+: > "$sandbox/status"
+printf '{"hosts":{"desktop":{}}}' > "$SB/data.json"
+printf '   X11 Layout: us\n' > "$SB/localectl-status"
+printf '01:00.0 VGA compatible controller: Intel Corporation HD Graphics 520\n' > "$SB/lspci-output"
+printf '[ {"name":"eDP-1","width":1366,"height":768,"refreshRate":60.0,"x":0,"y":0,"scale":1.0} ]\n' > "$SB/hyprctl-monitors.json"
+printf '# stock bashrc\n' > "$sandbox/home/.bashrc"
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile guest --host parrot-laptop \
+	--git-name "Ana Dev" --git-email ana@example.com --wallpaper-path "" \
+	--accept-detected --bashrc-loader yes </dev/null 2>&1); rc=$?
+cfg="$sandbox/home/.config/chezmoi/chezmoi.toml"
+if [ $rc -eq 0 ] \
+	&& [ "$(git config -f "$sandbox/home/.config/git/local" --get user.name)" = "Ana Dev" ] \
+	&& [ "$(git config -f "$sandbox/home/.config/git/local" --get user.email)" = "ana@example.com" ] \
+	&& grep -q '^    profile = "guest"$' "$cfg" \
+	&& grep -q '^    host    = "parrot-laptop"$' "$cfg" \
+	&& grep -q '^\[data\.hosts\.parrot-laptop\]$' "$cfg" \
+	&& grep -q '^kb_layout = "us"$' "$cfg" \
+	&& grep -q '>>> rice bashrc.d loader >>>' "$sandbox/home/.bashrc" \
+	&& grep -q '<<< rice bashrc.d loader <<<' "$sandbox/home/.bashrc" \
+	&& [ -f "$XDG_STATE_HOME/rice/bashrc-loader" ]; then
+	pass "onboard flags: no prompts, config + identity + host + marked loader written"
+else
+	flunk "onboard flags (rc=$rc out=<$out>)"
+fi
+
+# --- F2. --bashrc-loader no leaves ~/.bashrc untouched ---------------------------------
+rm -rf "${sandbox:?}/home" "${XDG_STATE_HOME:?}/rice"; mkdir -p "$sandbox/home"
+printf '# stock bashrc\n' > "$sandbox/home/.bashrc"
+HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile guest --host h2 --git-name A --git-email a@b.co \
+	--wallpaper-path "" --accept-detected --bashrc-loader no </dev/null >/dev/null 2>&1
+if [ "$(cat "$sandbox/home/.bashrc")" = "# stock bashrc" ] && [ ! -e "$XDG_STATE_HOME/rice/bashrc-loader" ]; then
+	pass "onboard flags: --bashrc-loader no leaves ~/.bashrc alone"
+else
+	flunk "onboard flags: --bashrc-loader no touched ~/.bashrc"
+fi
+
+# --- F3. a flag value that is invalid fails fast, before changing anything -------------
+rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile root --host x </dev/null 2>&1); rc=$?
+if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q "profile must be"; then
+	pass "onboard flags: invalid --profile is rejected"
+else
+	flunk "onboard flags: invalid profile accepted (rc=$rc out=<$out>)"
+fi
+out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --bogus </dev/null 2>&1); rc=$?
+if [ $rc -eq 2 ] && printf '%s' "$out" | grep -q "unknown argument"; then
+	pass "onboard flags: unknown argument -> exit 2"
+else
+	flunk "onboard flags: unknown argument (rc=$rc out=<$out>)"
+fi
+
 exit $fail
