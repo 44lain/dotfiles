@@ -45,8 +45,8 @@ class PlainUI:
 
     def __init__(self, t, stdin=None, stdout=None):
         self.t = t
-        self.inp = stdin or sys.stdin
-        self.out = stdout or sys.stdout
+        self.inp = stdin if stdin is not None else sys.stdin  # None (closed stdin) reads as EOF
+        self.out = stdout if stdout is not None else sys.stdout
 
     # -- plumbing
     def _say(self, text=""):
@@ -54,6 +54,8 @@ class PlainUI:
 
     def _read(self, prompt):
         print(prompt, end="", file=self.out, flush=True)
+        if self.inp is None:
+            return None
         line = self.inp.readline()
         return None if line == "" else line.rstrip("\n")
 
@@ -178,10 +180,11 @@ class PlainUI:
 
 def make_ui(t, plain=False, term=None, stdin=None, stdout=None):
     """CursesUI on an interactive terminal, PlainUI otherwise."""
-    stdin = stdin or sys.stdin
-    stdout = stdout or sys.stdout
+    stdin = stdin if stdin is not None else sys.stdin  # may still be None: stdin closed
+    stdout = stdout if stdout is not None else sys.stdout
     term = os.environ.get("TERM", "") if term is None else term
-    interactive = stdin.isatty() and stdout.isatty() and term not in ("", "dumb")
+    interactive = (stdin is not None and stdout is not None
+                   and stdin.isatty() and stdout.isatty() and term not in ("", "dumb"))
     if plain or not interactive:
         return PlainUI(t, stdin, stdout)
     try:
@@ -411,9 +414,9 @@ class CursesUI:
             elif k in (c.KEY_DOWN, "j"):
                 top += 1
             elif k == c.KEY_PPAGE:
-                top -= max(page - 1, 1)
+                top -= max(page - 3, 1)  # the two marker rows hide a row each: keep a 1-row overlap
             elif k == c.KEY_NPAGE:
-                top += max(page - 1, 1)
+                top += max(page - 3, 1)
             elif k == c.KEY_HOME:
                 top = 0
             elif k == c.KEY_END:

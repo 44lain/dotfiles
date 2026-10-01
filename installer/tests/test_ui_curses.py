@@ -193,6 +193,38 @@ class Unit(unittest.TestCase):
         self.assertIn("step line 01", seen[2])  # Home brings the start back
         self.assertIsNot(ui.CANCEL, "next")
 
+    def _page_through(self, first_keys, n_keys):
+        """Press `first_keys` once, then n_keys more times the last key; returns every
+        screen text drawn and the table result."""
+        u = fake_ui(24, 80)
+        screens_seen = []
+        keys = iter(list(first_keys) + [n_keys[0]] * n_keys[1] + [10])
+
+        def key():
+            screens_seen.append(u.scr.text())
+            return next(keys)
+
+        u._key = key
+        rows = [["row %02d" % i] for i in range(60)]
+        u.table(["Name"], rows)
+        return screens_seen
+
+    def test_pgdn_alone_shows_every_row_at_least_once_and_keeps_the_header(self):
+        import curses
+        seen = self._page_through([], (curses.KEY_NPAGE, 12))
+        text = "\n".join(seen)
+        for i in range(60):
+            self.assertIn("row %02d" % i, text)
+        self.assertTrue(all("Name" in s for s in seen))
+
+    def test_pgup_alone_from_the_end_shows_every_row_at_least_once(self):
+        import curses
+        seen = self._page_through([curses.KEY_END], (curses.KEY_PPAGE, 12))
+        text = "\n".join(seen)
+        for i in range(60):
+            self.assertIn("row %02d" % i, text)
+        self.assertTrue(all("Name" in s for s in seen))
+
     def test_a_row_wider_than_the_window_is_wrapped_not_fatal(self):
         u = fake_ui(24, 80)
         u._key = lambda: 10

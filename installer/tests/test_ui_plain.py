@@ -12,6 +12,29 @@ def plain(answers: str):
     return ui.PlainUI(t, stdin=io.StringIO(answers), stdout=out), out
 
 
+class ClosedStdin(unittest.TestCase):
+    def test_make_ui_and_plainui_treat_a_missing_stdin_as_eof(self):
+        from unittest import mock
+        with mock.patch.object(ui.sys, "stdin", None):
+            u = ui.make_ui(t, plain=True, stdin=None, stdout=io.StringIO())
+            self.assertIsInstance(u, ui.PlainUI)
+            self.assertIs(u.menu("Pick", [("a", "A")]), ui.CANCEL)
+            self.assertIs(u.confirm("ok?"), ui.CANCEL)
+            self.assertIs(u.text("name"), ui.CANCEL)
+            self.assertIsInstance(ui.make_ui(t, stdin=None, stdout=io.StringIO()), ui.PlainUI)
+
+    def test_python_m_installer_plain_with_stdin_closed_stops_cleanly(self):
+        import subprocess
+        import sys
+        from pathlib import Path
+        repo = Path(__file__).resolve().parents[2]
+        r = subprocess.run(["bash", "-c", f'"{sys.executable}" -m installer --plain --lang en <&-'],
+                           cwd=repo, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("Stopped", r.stdout)
+
+
 class Menu(unittest.TestCase):
     OPTS = [("a", "Alpha"), ("b", "Beta")]
 
