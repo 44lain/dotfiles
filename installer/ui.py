@@ -358,13 +358,28 @@ class CursesUI:
             pass
         return (start, page)
 
+    _seen = 0  # how many of self.lines have been drawn at least once
+
     def _msgs(self):
+        self._seen = len(self.lines)
         return [(t, n, False) for t, n in self.lines]
+
+    def _unseen(self):
+        return list(getattr(self, "lines", [])[self._seen:])
+
+    def _flush(self):
+        """Messages added since the last draw would vanish with the next screen
+        (or the exit): draw them and wait for a key first."""
+        if self._unseen() and not self._eof:
+            self._draw(self._msgs(), self.t("hint.table"))
+            self._key()
 
     # -- output
     def title(self, step, total, text):
+        self._flush()
         self.step = (step, total, text)
         self.lines = []
+        self._seen = 0
 
     def info(self, text):
         self.lines.append((text, None))
@@ -451,11 +466,20 @@ class CursesUI:
         """Idempotent: restores the terminal once, later calls do nothing."""
         if not self._open:
             return
-        self._open = False
+        pending = self._unseen()
         try:
-            self.curses.endwin()
-        except self.curses.error:
-            pass
+            self._flush()
+        finally:
+            self._open = False
+            try:
+                self.curses.endwin()
+            except self.curses.error:
+                pass
+        for text, _name in pending:  # keep the last words in the scrollback
+            try:
+                print(text, flush=True)
+            except OSError:
+                break
 
     # -- input
     def menu(self, prompt, options, default=0):

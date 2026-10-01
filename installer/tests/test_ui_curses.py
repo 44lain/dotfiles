@@ -35,6 +35,11 @@ elif scenario == "table":
     r = u.table(("Name", "Value"), [(f"row{i:02d}", str(i)) for i in range(60)])
 elif scenario == "checklist":
     r = u.checklist("Choose", [ui.Item("x", "Xray"), ui.Item("y", "Yankee", True), ui.Item("z", "Zulu")])
+elif scenario == "unseen_title":
+    u.title(4, 8, "Next")
+    r = "after"
+elif scenario == "unseen_close":
+    r = "closing"
 u.close()
 u.close()
 if r is ui.CANCEL:
@@ -166,6 +171,95 @@ def fake_ui(h, w):
 
 
 class Unit(unittest.TestCase):
+    def test_a_long_table_scrolls_from_the_first_line_to_the_last_and_back(self):
+        u = fake_ui(24, 80)
+        from installer import ui
+        import curses
+        seen = []
+        keys = iter([curses.KEY_END, curses.KEY_HOME, 10])
+
+        def key():
+            seen.append(u.scr.text())
+            return next(keys)
+
+        u._key = key
+        rows = [["step line %02d" % i] for i in range(1, 41)]
+        self.assertEqual(u.table(["Plan"], rows), "next")
+        self.assertIn("step line 01", seen[0])
+        self.assertNotIn("step line 40", seen[0])
+        self.assertIn("step line 40", seen[1])
+        self.assertNotIn("step line 01", seen[1])
+        self.assertIn("Plan", seen[1])  # header stays
+        self.assertIn("step line 01", seen[2])  # Home brings the start back
+        self.assertIsNot(ui.CANCEL, "next")
+
+    def test_a_row_wider_than_the_window_is_wrapped_not_fatal(self):
+        u = fake_ui(24, 80)
+        u._key = lambda: 10
+        u.table(["Plan"], [["x" * 400], ["sudo apt-get install -y " + "pkg " * 60]])
+        text = u.scr.text()
+        self.assertGreaterEqual(text.count("x"), 380)  # every character is reachable
+        self.assertIn("sudo apt-get install -y", text)
+
+    def test_messages_added_before_a_screen_change_are_drawn_and_wait_for_a_key(self):
+        u = fake_ui(24, 80)
+        u.info("Everything is already installed.")
+        seen = []
+
+        def key():
+            seen.append(u.scr.text())
+            return 10
+
+        u._key = key
+        u.title(2, 8, "Next")
+        self.assertEqual(len(seen), 1)
+        self.assertIn("Everything is already installed.", seen[0])
+        self.assertEqual(u.lines, [])
+
+    def test_no_wait_when_the_messages_were_already_drawn_or_there_are_none(self):
+        u = fake_ui(24, 80)
+
+        def boom():
+            raise AssertionError("must not wait")
+
+        u._key = boom
+        u.title(1, 8, "A")  # nothing pending
+        u.info("shown with the menu")
+        u._key = lambda: 10
+        u.menu("Pick", [("a", "A")])  # the menu draws the message
+        u._key = boom
+        u.title(2, 8, "B")
+        u.close()
+
+    def test_close_leaves_the_unseen_messages_on_stdout(self):
+        import contextlib
+        import io
+        from unittest import mock
+        u = fake_ui(24, 80)
+        u._open = True
+        keys = []
+        u._key = lambda: keys.append(1) or 10
+        u.info("Stopped. Nothing after this point was done.")
+        out = io.StringIO()
+        with mock.patch.object(u.curses, "endwin"), contextlib.redirect_stdout(out):
+            u.close()
+            u.close()  # idempotent
+        self.assertIn("Stopped. Nothing after this point was done.", out.getvalue())
+        self.assertEqual(len(keys), 1)
+        self.assertIn("Stopped.", u.scr.text())  # it was drawn before the wait
+
+    def test_close_without_pending_messages_prints_and_waits_for_nothing(self):
+        import contextlib
+        import io
+        from unittest import mock
+        u = fake_ui(24, 80)
+        u._open = True
+        u._key = lambda: self.fail("must not wait")
+        out = io.StringIO()
+        with mock.patch.object(u.curses, "endwin"), contextlib.redirect_stdout(out):
+            u.close()
+        self.assertEqual(out.getvalue(), "")
+
     def test_draw_without_blocking_shows_the_notice_on_a_small_window(self):
         u = fake_ui(10, 40)
         u._draw([], "hint", block=False)
@@ -275,6 +369,20 @@ class Smoke(unittest.TestCase):
         self.assertNotIn("Package 36", out[:offsets[0]])
         self.assertIn("Package 36", out[offsets[0]:])
         self.assertIn("RESULT ['p35']", out)
+
+    def test_a_message_just_before_a_screen_change_is_drawn_and_waits_for_a_key(self):
+        out, code = run_in_pty(30, 100, [(b"\n", "RESULT")], scenario="unseen_title",
+                               ready="hello from the frame")
+        self.assertEqual(code, 0)
+        self.assertIn("RESULT 'after'", out)
+
+    def test_a_message_just_before_exit_stays_in_the_scrollback(self):
+        out, code = run_in_pty(30, 100, [(b"\n", "RESULT")], scenario="unseen_close",
+                               ready="hello from the frame")
+        self.assertEqual(code, 0)
+        # after the alternate screen is left (endwin) the text is plain scrollback
+        self.assertIn("hello from the frame", out.split("\x1b[?1049l")[-1])
+        self.assertIn("RESULT 'closing'", out)
 
     def test_a_long_table_keeps_its_header_and_scrolls(self):
         offsets = []

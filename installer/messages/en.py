@@ -88,6 +88,7 @@ MESSAGES = {
     "plan.sim_ok": "Dry run passed.",
     "plan.sim_fail": "Dry run found a problem:",
     "plan.sim_failed_warn": "The dry run reported a problem above. You can still continue, but the install will probably fail.",
+    "plan.summary": "{n} step(s) planned. The list above scrolls; read it before you confirm.",
     "plan.no_revert": "Installed packages are NOT removed by rice rollback or rice uninstall. Applied configuration can be reverted with rice rollback.",
     "plan.nothing_selected": "Nothing selected; skipping the install.",
     "plan.confirm": "Run this plan now?",

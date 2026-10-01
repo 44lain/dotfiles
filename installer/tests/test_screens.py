@@ -157,7 +157,7 @@ class Plan(Base):
 
     def test_declining_the_confirmation_installs_nothing(self):
         # Review Focus 1
-        ui = FakeUI(["rofi"], False)
+        ui = FakeUI(["rofi"], "next", False)
         s = self.prepared()
         self.assertEqual(screens.plan_screen(ui, s), "back")
         self.assertEqual(self.calls, [])
@@ -167,26 +167,46 @@ class Plan(Base):
         for answer, expected in ((BACK, "back"), (CANCEL, "cancel")):
             self.calls.clear()
             s = self.prepared()
-            self.assertEqual(screens.plan_screen(FakeUI(["rofi"], answer), s), expected)
+            self.assertEqual(screens.plan_screen(FakeUI(["rofi"], "next", answer), s), expected)
             self.assertEqual(self.calls, [])
             self.assertEqual(s.plan, [])
 
     def test_confirming_stores_the_plan_and_shows_exact_commands(self):
-        ui = FakeUI(["rofi"], True)
+        ui = FakeUI(["rofi"], "next", True)
         s = self.prepared()
         self.assertEqual(screens.plan_screen(ui, s), "next")
         self.assertEqual(len(s.plan), 1)
-        self.assertIn("sudo apt-get install -y rofi", ui.text_of("info"))
+        self.assertIn("sudo apt-get install -y rofi", " ".join(ui.table_lines()))
         self.assertIn("NOT removed", ui.text_of("warn"))
+
+    def test_the_whole_plan_is_scrollable_rows_shown_before_the_confirmation(self):
+        # at 80x24 messages are cut to the last rows: the plan must be table rows
+        ui = FakeUI(["rofi"], "next", True)
+        screens.plan_screen(ui, self.prepared())
+        self.assertEqual([k for k, _ in ui.asked], ["checklist", "table", "confirm"])
+        self.assertIn("sudo apt-get install -y rofi", [x.strip() for x in ui.table_lines()])  # exact line, own row
+        self.assertTrue(any("Dry run passed" in x for x in ui.table_lines()))
+        self.assertNotIn("sudo apt-get install -y rofi", ui.text_of("info"))
+        order = [k for k, _ in ui.events if k in ("table", "warn")]
+        self.assertEqual(order[0], "table")  # warnings and summary come after the rows
+
+    def test_back_and_cancel_at_the_plan_table_install_nothing(self):
+        for answer, expected in ((BACK, "back"), (CANCEL, "cancel")):
+            ui = FakeUI(["rofi"], answer)
+            s = self.prepared()
+            self.assertEqual(screens.plan_screen(ui, s), expected)
+            self.assertEqual(s.plan, [])
+            self.assertNotIn("confirm", [k for k, _ in ui.asked])
 
     def test_a_failed_simulation_is_shown_before_the_confirmation(self):
         env = make_env(home=self.home, which={"kitty"}, outputs={
             "apt-cache madison rofi": cp(0, " rofi | 1.7 | https://x stable/main amd64 Packages\n"),
             "apt-cache policy rofi": cp(0, "Candidate: 1.7\n"),
             "apt-get -s install rofi": cp(100, "E: Unable to correct problems\n")})
-        ui = FakeUI(["rofi"], False)
+        ui = FakeUI(["rofi"], "next", False)
         screens.plan_screen(ui, self.prepared(env))
-        self.assertIn("Unable to correct problems", ui.text_of("error"))
+        self.assertIn("Unable to correct problems", " ".join(ui.table_lines()))
+        self.assertIn("probably fail", ui.text_of("warn"))
 
     def test_required_items_are_preselected(self):
         ui = FakeUI(CANCEL)
@@ -371,14 +391,30 @@ class Verify(Base):
         Path(self.home, ".local/bin/rice").write_text("#!/bin/sh\n")
         ui = FakeUI("next")
         self.assertEqual(screens.verify_screen(ui, s), "next")
-        shown = ui.text_of("info") + ui.text_of("success") + ui.text_of("warn") + ui.text_of("error")
-        self.assertIn("starts with the Hyprland session", shown)
-        self.assertIn("How to go back", shown)
-        self.assertIn("rice uninstall", shown)
+        rows = ui.table_lines()
+        self.assertEqual(len(ui.tables), 1)  # one scrollable table holds everything
+        self.assertIn("ok   fonts", rows)
+        self.assertTrue(any(r.startswith("info ") and "starts with the Hyprland session" in r for r in rows))
+        self.assertTrue(any("How to go back" in r for r in rows))
+        self.assertTrue(any("rice uninstall" in r for r in rows))
+        self.assertTrue(any("Stays installed" in r for r in rows))
+
+    def test_doctor_failures_are_rows_of_the_table_with_a_kind_prefix(self):
+        doctor = "== fonts ==\n  FAIL font missing: Rubik\n  WARN missing: age\n       sudo apt install x\n"
+        s = self.state(runner=lambda argv, on_line=None: cp(1, doctor))
+        ui = FakeUI("next")
+        screens.verify_screen(ui, s)
+        rows = ui.table_lines()
+        self.assertIn("== fonts ==", rows)
+        self.assertIn("FAIL font missing: Rubik", rows)
+        self.assertIn("WARN missing: age", rows)
+        self.assertIn("note sudo apt install x", rows)
+        self.assertIn("1 check(s) failed", ui.text_of("warn"))
 
     def test_back_from_the_final_table_goes_to_configure(self):
         s = self.state(runner=lambda argv, on_line=None: cp(0, "  ok   fonts\n"))
         self.assertEqual(screens.verify_screen(FakeUI(BACK), s), screens.IDX["configure"])
+        self.assertEqual(screens.verify_screen(FakeUI(CANCEL), s), "cancel")
 
     def test_missing_doctor_is_a_message_not_a_crash(self):
         s = self.state(runner=lambda argv, on_line=None: cp(127, "command not found"))

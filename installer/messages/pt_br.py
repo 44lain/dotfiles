@@ -81,6 +81,7 @@ MESSAGES = {
     "plan.sim_ok": "Simulação sem problemas.",
     "plan.sim_fail": "A simulação encontrou um problema:",
     "plan.sim_failed_warn": "A simulação apontou um problema acima. Você pode continuar, mas a instalação provavelmente vai falhar.",
+    "plan.summary": "{n} passo(s) planejado(s). A lista acima rola; leia antes de confirmar.",
     "plan.no_revert": "Os pacotes instalados NÃO são removidos por rice rollback nem rice uninstall. A configuração aplicada pode ser revertida com rice rollback.",
     "plan.nothing_selected": "Nada selecionado; pulando a instalação.",
     "plan.confirm": "Executar este plano agora?",

@@ -11,6 +11,7 @@ class FakeUI:
         self.asked = []      # ("menu"|"checklist"|"text"|"confirm", prompt)
         self.suspended = []  # argv of suspend() calls
         self.suspend_rc = 0
+        self.tables = []     # (header, rows) of every table() call
 
     def _next(self, kind, prompt):
         self.asked.append((kind, prompt))
@@ -33,6 +34,7 @@ class FakeUI:
 
     def table(self, header, rows):
         self.events.append(("table", repr(rows)))
+        self.tables.append((list(header), [list(r) for r in rows]))
         return self._next("table", "")
 
     def menu(self, prompt, options, default=0):
@@ -65,6 +67,10 @@ class FakeUI:
 
     def close(self):
         pass
+
+    def table_lines(self, n=-1):
+        """Flat text of the rows of table number n (default: the last one)."""
+        return [str(c) for r in self.tables[n][1] for c in r]
 
     def text_of(self, kind):
         return "\n".join(t for k, t in self.events if k == kind)

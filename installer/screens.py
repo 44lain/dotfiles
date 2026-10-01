@@ -205,16 +205,22 @@ def plan_screen(ui, s):
         return IDX["configure"]
     plan = model.build_plan(s.statuses, set(picked), s.family)
     failed = False
+    rows = []  # the whole plan is table rows: the user can scroll it (messages cannot be)
     for step in plan:
-        ui.info("• " + t(step.title_key, **step.title_args))
-        for line in recipes.describe_step(step, s.home):
-            ui.info("    " + line)
+        rows.append(["• " + t(step.title_key, **step.title_args)])
+        rows += [["    " + line] for line in recipes.describe_step(step, s.home)]
         status, text = model.simulate(step, s.family, s.env)
         if status == "ok":
-            ui.success(t("plan.sim_ok"))
+            rows.append(["    ok   " + t("plan.sim_ok")])
         elif status == "fail":
             failed = True
-            ui.error(t("plan.sim_fail") + "\n" + text)
+            rows.append(["    FAIL " + t("plan.sim_fail")])
+            rows += [["         " + line] for line in text.splitlines()]
+        rows.append([""])
+    r = ui.table([t("plan.title")], rows)
+    if r is BACK or r is CANCEL:
+        return _nav(r)
+    ui.info(t("plan.summary", n=len(plan)))
     if failed:
         ui.warn(t("plan.sim_failed_warn"))
     ui.warn(t("plan.no_revert"))
@@ -354,29 +360,22 @@ def verify_screen(ui, s):
     ui.info(t("verify.running"))
     rice = os.path.join(s.home, ".local", "bin", "rice")
     cp = _run(s, [rice, "doctor"])
+    rows = []
+    prefix = {"ok": "ok   ", "warn": "WARN ", "fail": "FAIL ", "info": "info ", "note": "note ", "head": ""}
     if cp.returncode == 127:
         ui.error(t("verify.doctor_missing", error=(cp.stdout or "command not found").strip()))
     else:
         fails = 0
         for kind, msg in classify_doctor((cp.stdout or "").splitlines(), in_hyprland()):
-            if kind == "ok":
-                ui.success(msg)
-            elif kind == "warn":
-                ui.warn(msg)
-            elif kind == "fail":
-                fails += 1
-                ui.error(msg)
-            elif kind == "info":
-                ui.info("• " + t("verify.session_pending", msg=msg))
-            else:
-                ui.info(msg)
+            fails += kind == "fail"
+            if kind == "info":
+                msg = t("verify.session_pending", msg=msg)
+            rows.append([prefix[kind] + msg])
         ui.success(t("verify.summary_ok")) if not fails else ui.warn(t("verify.summary_fail", n=fails))
-    ui.info(t("verify.next"))
-    ui.info(t("verify.back_title"))
-    ui.info(t("verify.back_text"))
-    ui.info(t("verify.stays_text"))
-    ui.info(t("verify.uninstall_text"))
-    r = ui.table([t("app.title")], [[t("verify.next")]])
+        rows.append([""])
+    rows += [[t(k)] for k in ("verify.next", "verify.back_title", "verify.back_text",
+                              "verify.stays_text", "verify.uninstall_text")]
+    r = ui.table([t("verify.title")], rows)
     if r is BACK:
         return IDX["configure"]
     return "cancel" if r is CANCEL else "next"
