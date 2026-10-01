@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -186,6 +187,292 @@ def make_ui(t, plain=False, term=None, stdin=None, stdout=None):
         return PlainUI(t, stdin, stdout)
 
 
-class CursesUI:  # replaced by the real implementation in Task 9
+class CursesUI:
+    """Boxed frame, arrow-key navigation. Messages accumulate on the screen until
+    the next title(); widgets draw below them."""
+
     def __init__(self, t):
-        raise NotImplementedError
+        import curses
+        import locale
+        try:
+            locale.setlocale(locale.LC_ALL, "")
+        except locale.Error:
+            pass
+        os.environ.setdefault("ESCDELAY", "25")
+        self.curses = curses
+        self.t = t
+        self._open = False
+        self._eof = False
+        self.scr = curses.initscr()
+        self._open = True
+        try:
+            curses.noecho()
+            curses.cbreak()
+            self.scr.keypad(True)
+            try:
+                curses.curs_set(0)
+            except curses.error:
+                pass
+            self.color = curses.has_colors() and "NO_COLOR" not in os.environ
+            self.attrs = {}
+            if self.color:
+                curses.start_color()
+                try:
+                    curses.use_default_colors()
+                    bg = -1
+                except curses.error:
+                    bg = curses.COLOR_BLACK
+                for i, (name, col) in enumerate(PALETTE.items(), 1):
+                    curses.init_pair(i, getattr(curses, "COLOR_" + col), bg)
+                    self.attrs[name] = curses.color_pair(i)
+            enc = (locale.getpreferredencoding(False) or "").upper().replace("-", "")
+            utf8 = enc == "UTF8"
+            self.f = FRAME_UTF8 if utf8 else FRAME_ASCII
+            self.marks = ("✓", "!", "✗", "·") if utf8 else ("+", "!", "x", "-")
+            self.step = (0, 0, "")
+            self.lines = []  # (text, attr-name)
+        except BaseException:
+            self.close()  # a failed start must never leave the terminal broken
+            raise
+
+    # -- low level
+    def _put(self, y, x, text, attr=0):
+        try:
+            self.scr.addstr(y, x, text, attr)
+        except (self.curses.error, UnicodeError):
+            pass  # too-small window or an unencodable character: never fatal
+
+    def _attr(self, name):
+        return self.attrs.get(name, 0) if name else 0
+
+    def _fit(self, text, width):
+        import textwrap
+        out = []
+        for para in str(text).split("\n"):
+            out += textwrap.wrap(para, max(width, 1)) or [""]
+        return out
+
+    def _key(self):
+        """Next key: an int for special/control keys (10 = Enter, 27 = ESC, curses
+        KEY_* codes) or a one-character str for printable input, so multi-byte
+        characters such as 'ã' arrive whole. KEY_RESIZE is returned as is;
+        callers redraw on any key they do not handle."""
+        failures = 0
+        while True:
+            try:
+                k = self.scr.get_wch()
+            except self.curses.error:
+                failures += 1
+                if failures > 20:  # input is gone (closed tty): behave like ESC
+                    self._eof = True
+                    return 27
+                time.sleep(0.02)
+                continue
+            if isinstance(k, str):
+                o = ord(k)
+                return o if o < 32 or o == 127 else k
+            return k
+
+    def _draw(self, body, hint):
+        """body: list of (text, attr-name, bold?). Shows a resize notice if too small."""
+        c = self.curses
+        while True:
+            h, w = self.scr.getmaxyx()
+            if (h >= MIN_H and w >= MIN_W) or self._eof:
+                break
+            self.scr.erase()
+            self._put(0, 0, self.t("ui.too_small", w=MIN_W, h=MIN_H)[: max(w - 1, 0)])
+            try:
+                self.scr.refresh()
+            except c.error:
+                pass
+            self._key()  # any key (or KEY_RESIZE) re-checks the size
+        self.scr.erase()
+        f = self.f
+        step, total, text = self.step
+        title = self.t("app.title")
+        dot = self.marks[3]
+        head = f" {title} {dot} {step}/{total} {dot} {text} " if total else f" {title} "
+        self._put(0, 0, f["tl"] + f["h"] * (w - 2))
+        self._put(0, 0, f["tl"] + f["h"] + head, self._attr("accent") | c.A_BOLD)
+        self._put(0, w - 1, f["tr"])
+        for y in range(1, h - 1):
+            self._put(y, 0, f["v"])
+            self._put(y, w - 1, f["v"])
+        self._put(h - 1, 0, f["bl"] + f["h"] * (w - 2))
+        self._put(h - 1, w - 1, f["br"])
+        rows = []
+        for text, name, bold in body:
+            for part in self._fit(text, w - 6):
+                rows.append((part, name, bold))
+        room = max(h - 4, 1)
+        for i, (part, name, bold) in enumerate(rows[-room:]):
+            self._put(1 + i, 2, part, self._attr(name) | (c.A_BOLD if bold else 0))
+        self._put(h - 2, 2, hint[: max(w - 4, 0)], self._attr("dim"))
+        try:
+            self.scr.refresh()
+        except c.error:
+            pass
+
+    def _msgs(self):
+        return [(t, n, False) for t, n in self.lines]
+
+    # -- output
+    def title(self, step, total, text):
+        self.step = (step, total, text)
+        self.lines = []
+
+    def info(self, text):
+        self.lines.append((text, None))
+
+    def success(self, text):
+        self.lines.append((self.marks[0] + " " + text, "ok"))
+
+    def warn(self, text):
+        self.lines.append((self.marks[1] + " " + text, "warn"))
+
+    def error(self, text):
+        self.lines.append((self.marks[2] + " " + text, "err"))
+
+    def table(self, header, rows):
+        widths = [max(len(str(x)) for x in col) for col in zip(header, *rows)] if rows else [len(h) for h in header]
+        fmt = lambda r: "  ".join(str(c).ljust(wd) for c, wd in zip(r, widths))
+        body = self._msgs() + [(fmt(header), "accent", True)] + [(fmt(r), None, False) for r in rows]
+        c = self.curses
+        while True:
+            self._draw(body, self.t("hint.table"))
+            k = self._key()
+            if k in (10, 13, c.KEY_ENTER, c.KEY_RIGHT):
+                return "next"
+            if k == c.KEY_LEFT:
+                return BACK
+            if k == 27:
+                return CANCEL
+
+    @contextmanager
+    def progress(self, label):
+        from collections import deque
+        buf = deque(maxlen=10)
+        tick = [0]
+
+        def push(line=""):
+            if line:
+                buf.append(line)
+            tick[0] += 1
+            body = self._msgs() + [(f"{SPINNER[tick[0] % 4]} {label}", "accent", True)]
+            body += [("   " + ln, "dim", False) for ln in buf]
+            self._draw(body, self.t("hint.wait"))
+
+        push()
+        yield push
+
+    def suspend(self, argv):
+        """Run an interactive command outside curses; always restores the screen."""
+        c = self.curses
+        c.def_prog_mode()
+        c.endwin()
+        try:
+            try:
+                rc = subprocess.call(argv)
+            except (FileNotFoundError, PermissionError):
+                rc = 127
+            try:
+                input("\n" + self.t("ui.press_enter"))
+            except EOFError:
+                pass
+            return rc
+        finally:
+            try:
+                c.reset_prog_mode()
+                self.scr.clear()
+                self.scr.refresh()
+            except c.error:
+                pass
+
+    def close(self):
+        """Idempotent: restores the terminal once, later calls do nothing."""
+        if not self._open:
+            return
+        self._open = False
+        try:
+            self.curses.endwin()
+        except self.curses.error:
+            pass
+
+    # -- input
+    def menu(self, prompt, options, default=0):
+        c = self.curses
+        idx = default
+        while True:
+            body = self._msgs() + [(prompt, None, True)]
+            for i, (_k, label) in enumerate(options):
+                body.append((("> " if i == idx else "  ") + label, "accent" if i == idx else None, i == idx))
+            self._draw(body, self.t("hint.menu"))
+            k = self._key()
+            if k in (c.KEY_UP, "k"):
+                idx = (idx - 1) % len(options)
+            elif k in (c.KEY_DOWN, "j"):
+                idx = (idx + 1) % len(options)
+            elif k in (10, 13, " ", c.KEY_ENTER, c.KEY_RIGHT):
+                return options[idx][0]
+            elif k == c.KEY_LEFT:
+                return BACK
+            elif k == 27:
+                return CANCEL
+
+    def checklist(self, prompt, items):
+        c = self.curses
+        state = {i.key: i.checked for i in items}
+        idx = 0
+        while True:
+            body = self._msgs() + [(prompt, None, True)]
+            for n, i in enumerate(items):
+                mark = "[x]" if state[i.key] else "[ ]"
+                body.append((f"{'>' if n == idx else ' '} {mark} {i.label}", "accent" if n == idx else None, n == idx))
+            self._draw(body, self.t("hint.checklist"))
+            k = self._key()
+            if k in (c.KEY_UP, "k"):
+                idx = (idx - 1) % len(items)
+            elif k in (c.KEY_DOWN, "j"):
+                idx = (idx + 1) % len(items)
+            elif k == " ":
+                state[items[idx].key] = not state[items[idx].key]
+            elif k == "a":
+                every = all(state.values())
+                state = {key: not every for key in state}
+            elif k in (10, 13, c.KEY_ENTER):
+                return [i.key for i in items if state[i.key]]
+            elif k == c.KEY_LEFT:
+                return BACK
+            elif k == 27:
+                return CANCEL
+
+    def text(self, prompt, default="", validate=None):
+        c = self.curses
+        value = default
+        while True:
+            ok, msg = (True, "")
+            if validate:
+                ok, msg = validate(value)
+            body = self._msgs() + [(prompt, None, True), ("> " + value + "_", "accent", False)]
+            if msg:
+                body.append(((self.marks[0] if ok else self.marks[2]) + " " + msg, "ok" if ok else "err", False))
+            self._draw(body, self.t("hint.text"))
+            k = self._key()
+            if k in (10, 13, c.KEY_ENTER):
+                if ok:
+                    return value
+            elif k in (c.KEY_BACKSPACE, 127, 8):
+                value = value[:-1]
+            elif k == c.KEY_LEFT and value == "":
+                return BACK
+            elif k == 27:
+                return CANCEL
+            elif isinstance(k, str):
+                value += k  # KEY_RESIZE and other key codes are ints: ignored, redraw
+
+    def confirm(self, prompt, default=False):
+        r = self.menu(prompt, [("y", self.t("ui.yes")), ("n", self.t("ui.no"))], default=0 if default else 1)
+        if r is BACK or r is CANCEL:
+            return CANCEL
+        return r == "y"
