@@ -139,6 +139,89 @@ class ShellJson(Base):
         validate.write_shell_json("/x", self.home)
         self.assertEqual(clone.read_text(), "{}")
 
+    def test_shell_json_symlink_stays_symlink_target_updated(self):
+        import stat
+        target = Path(self.home, "shell-target.json")
+        target.write_text(json.dumps({"wallpaper": {"fit": "cover", "directory": "/old"}}))
+        self.path.parent.mkdir(parents=True)
+        self.path.symlink_to(target)
+        validate.write_shell_json("/new", self.home)
+        # path should still be a symlink
+        self.assertTrue(self.path.is_symlink())
+        # target should have the new directory and old keys
+        self.assertEqual(json.loads(target.read_text()),
+                         {"wallpaper": {"fit": "cover", "directory": "/new"}})
+
+    def test_shell_json_preserves_file_mode(self):
+        import stat
+        self.path.parent.mkdir(parents=True)
+        self.path.write_text(json.dumps({"wallpaper": {"directory": "/old"}}))
+        # Set mode to 0o600
+        os.chmod(str(self.path), 0o600)
+        original_mode = stat.S_IMODE(os.stat(str(self.path)).st_mode)
+        validate.write_shell_json("/new", self.home)
+        # mode should still be 0o600
+        new_mode = stat.S_IMODE(os.stat(str(self.path)).st_mode)
+        self.assertEqual(original_mode, new_mode)
+
+    def test_shell_json_new_file_created_normally(self):
+        validate.write_shell_json("/x", self.home)
+        # file should exist and be writable
+        self.assertTrue(self.path.exists())
+        self.assertEqual(json.loads(self.path.read_text()), {"wallpaper": {"directory": "/x"}})
+
+
+class WallpaperDirBudget(Base):
+    def test_count_images_stops_at_max_entries_budget(self):
+        # Create a tree of 100 non-image files plus one image that sorts last
+        for i in range(100):
+            self.touch(f"tree/file_{i:03d}.txt")
+        self.touch("tree/zzz.jpg")  # sorts last
+        # With max_entries=10, the walk should stop before finding the image
+        r = validate.count_images(f"{self.home}/tree", max_entries=10)
+        self.assertEqual(r, 0)
+
+    def test_existing_tests_still_pass_with_default_max_entries(self):
+        # Verify the normal case still works (3 images should be found)
+        for n in ("a.jpg", "b.PNG", "sub/c.webp", "notes.txt"):
+            self.touch("Pictures/wp/" + n)
+        r = validate.check_wallpaper_dir("~/Pictures/wp", self.home)
+        self.assertEqual((r.ok, r.code, r.args["count"]), (True, "wallpaper.ok", 3))
+
+    def test_parent_probe_does_not_find_deep_images(self):
+        # Create empty target dir with images deeper than 2 levels in parent
+        self.touch("Pictures/a.jpg")
+        self.touch("Pictures/sub1/b.jpg")
+        self.touch("Pictures/sub1/sub2/deep1/deep2/c.jpg")
+        Path(self.home, "Pictures/sub1/sub2/target").mkdir()
+        r = validate.check_wallpaper_dir(f"{self.home}/Pictures/sub1/sub2/target", self.home)
+        # Should not find images 3+ levels deep under the parent
+        self.assertEqual(r.code, "wallpaper.empty")
+
+
+class ExpandTilde(Base):
+    def test_expand_tilde_only_expands_tilde_and_tilde_slash(self):
+        # `~/path` should expand
+        result = validate._expand("~/Pictures", self.home)
+        self.assertEqual(result, f"{self.home}/Pictures")
+        # `~` should expand
+        result = validate._expand("~", self.home)
+        self.assertEqual(result, self.home)
+        # `~other/path` should NOT expand (stay as relative)
+        result = validate._expand("~other/path", self.home)
+        self.assertEqual(result, "~other/path")
+        # `~user/path` should NOT expand
+        result = validate._expand("~user/file", self.home)
+        self.assertEqual(result, "~user/file")
+
+    def test_check_wallpaper_dir_rejects_tilde_user_paths(self):
+        r = validate.check_wallpaper_dir("~other/Pictures", self.home)
+        self.assertEqual(r.code, "wallpaper.relative")
+
+    def test_check_wallpaper_image_rejects_tilde_user_paths(self):
+        r = validate.check_wallpaper_image("~other/image.jpg", self.home)
+        self.assertEqual(r.code, "image.relative")
+
 
 if __name__ == "__main__":
     unittest.main()
