@@ -304,8 +304,10 @@ if [ "$is_new" -eq 1 ]; then
 	fi
 fi
 
-sed -i "s/^    profile = .*/    profile = \"$profile\"/" "$chezmoi_config"
-sed -i "s/^    host    = .*/    host    = \"$host_name\"/" "$chezmoi_config"
+# any spacing around the key/`=` is accepted (the guided installer or a hand edit may
+# have changed it); the line is always rewritten in the template's own layout
+sed -i "s/^[[:space:]]*profile[[:space:]]*=.*/    profile = \"$profile\"/" "$chezmoi_config"
+sed -i "s/^[[:space:]]*host[[:space:]]*=.*/    host    = \"$host_name\"/" "$chezmoi_config"
 
 # --- 7b. ~/.bashrc.d loader ---------------------------------------------------
 # Fedora's stock ~/.bashrc sources ~/.bashrc.d/*; Debian-family ones do not, and

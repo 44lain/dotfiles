@@ -319,8 +319,10 @@ def _pin_profile_host(cfg, profile, host):
     --promptString does not reach promptStringOnce, so set the chosen values."""
     with open(cfg, encoding="utf-8") as f:
         text = f.read()
+    # Keep the template's own spacing (`host    = ...`): rice-onboard later rewrites
+    # these lines with a sed that matches that exact layout.
     for key, value in (("profile", profile), ("host", host)):
-        text = re.sub(rf"(?m)^(\s*){key}\s*=.*$", lambda m, k=key, v=value: f"{m.group(1)}{k} = {json.dumps(v)}",
+        text = re.sub(rf"(?m)^(\s*{key}\s*=\s*).*$", lambda m, v=value: f"{m.group(1)}{json.dumps(v)}",
                       text, count=1)
     with open(cfg, "w", encoding="utf-8") as f:
         f.write(text)

@@ -228,6 +228,20 @@ else
 	flunk "onboard flags: --bashrc-loader no touched ~/.bashrc"
 fi
 
+# --- F4. profile/host lines with any spacing are still updated (re-run after the TUI pinned them) ---
+rm -rf "${sandbox:?}/home" "${XDG_STATE_HOME:?}/rice"; mkdir -p "$sandbox/home/.config/chezmoi"
+printf '[data]\n  profile = "guest"\n  host = "desktop"\n' > "$sandbox/home/.config/chezmoi/chezmoi.toml"
+printf '{"hosts":{"desktop":{}}}' > "$SB/data.json"
+HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile personal --host laptop2 --git-name A --git-email a@b.co \
+	--wallpaper-path "" --accept-detected --bashrc-loader no </dev/null >/dev/null 2>&1
+cfg4="$sandbox/home/.config/chezmoi/chezmoi.toml"
+if grep -q '^    host    = "laptop2"$' "$cfg4" && grep -q '^    profile = "personal"$' "$cfg4" \
+	&& ! grep -q 'host = "desktop"' "$cfg4"; then
+	pass "onboard: unpadded/odd-spacing profile and host lines are rewritten"
+else
+	flunk "onboard: host/profile not updated when the lines are not padded ($(tr '\n' '|' < "$cfg4"))"
+fi
+
 # --- F3. a flag value that is invalid fails fast, before changing anything -------------
 rm -rf "${sandbox:?}/home"; mkdir -p "$sandbox/home"
 out=$(HOME="$sandbox/home" "$sandbox/bin/rice" onboard --profile root --host x </dev/null 2>&1); rc=$?

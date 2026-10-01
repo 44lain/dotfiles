@@ -418,10 +418,37 @@ class Configure(Base):
         self.assertEqual(screens.configure_screen(FakeUI(True), s), "next")
         self.assertIn(["chezmoi", "init", "--promptDefaults"], self.calls)
         text = cfg.read_text()
-        self.assertIn('profile = "personal"', text)
-        self.assertIn('host = "parrot"', text)
+        # the template's spacing is kept: rice-onboard's later sed matches `^    host    = `
+        self.assertIn('\n    profile = "personal"\n', text)
+        self.assertIn('\n    host    = "parrot"\n', text)
         self.assertNotIn("desktop", text)
         self.assertIn('wallpaper_path = ""', text)
+
+    def test_pinned_host_can_still_be_changed_by_rice_onboards_sed(self):
+        # Regression: the pin used to rewrite `host    =` as `host =`, so onboard's
+        # `sed "s/^    host    = .*/…/"` never matched again on a re-run with a new host.
+        import subprocess
+        cfg = Path(self.home, ".config/chezmoi/chezmoi.toml")
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text('[data]\n    profile = "guest"\n    host    = "desktop"\n')
+        screens._pin_profile_host(str(cfg), "guest", "parrot")
+        subprocess.run(["sed", "-i", 's/^    host    = .*/    host    = "laptop"/', str(cfg)], check=True)
+        subprocess.run(["sed", "-i", 's/^    profile = .*/    profile = "personal"/', str(cfg)], check=True)
+        text = cfg.read_text()
+        self.assertIn('    host    = "laptop"', text)
+        self.assertIn('    profile = "personal"', text)
+        self.assertNotIn("parrot", text)
+
+    def test_pin_handles_a_file_without_the_keys_and_odd_spacing(self):
+        cfg = Path(self.home, "c.toml")
+        cfg.write_text('[data]\n  profile="guest"\n  host\t=\t"desktop"\n')
+        screens._pin_profile_host(str(cfg), "personal", "x")
+        text = cfg.read_text()
+        self.assertIn('  profile="personal"', text)
+        self.assertIn('  host\t=\t"x"', text)
+        cfg.write_text('[data]\n')
+        screens._pin_profile_host(str(cfg), "guest", "x")
+        self.assertEqual(cfg.read_text(), '[data]\n')
 
     def test_declining_applies_nothing(self):
         s = self.ready()
