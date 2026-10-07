@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does hyprland.lua load on the Hyprland Debian's backports ships (0.55.x)?
+# Does hyprland.lua load on the Hyprland Debian's backports ships (0.55.x) and on Arch's (the newest release)?
 # Needs docker + network. Run: bash test/distro/hyprland-verify.sh
 #
 # `Hyprland --verify-config` runs headless (no display/GPU needed): it loads
@@ -39,6 +39,7 @@ EOF
 
 # SYS_NICE: Debian's Hyprland binary carries cap_sys_nice=ep, and exec fails
 # with "Operation not permitted" when the container's bounding set lacks it.
+fail=0
 # shellcheck disable=SC2016  # expanded inside the container
 docker run --rm --cap-add SYS_NICE -v "$tmp:/rice:ro" debian:trixie bash -c '
 	set -e
@@ -48,4 +49,13 @@ docker run --rm --cap-add SYS_NICE -v "$tmp:/rice:ro" debian:trixie bash -c '
 	apt-get install -y -qq -t trixie-backports hyprland >/dev/null 2>&1
 	useradd -m rice
 	su rice -c "bash /rice/run.sh"
-'
+' || { echo "FAIL: debian:trixie (backports)"; fail=1; }
+# Arch ships the newest Hyprland: a config-breaking release shows up here first.
+# shellcheck disable=SC2016  # expanded inside the container
+docker run --rm --cap-add SYS_NICE -v "$tmp:/rice:ro" archlinux:latest bash -c '
+	set -e
+	pacman -Syu --noconfirm --needed -q hyprland >/dev/null 2>&1
+	useradd -m rice
+	su rice -c "bash /rice/run.sh"
+' || { echo "FAIL: archlinux:latest"; fail=1; }
+exit $fail

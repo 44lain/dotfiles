@@ -20,6 +20,7 @@ images=(
 	"arch|archlinux:latest|hard"
 	"debian|ubuntu:24.04|soft"
 	"debian|kalilinux/kali-rolling:latest|soft"
+	"arch|cachyos/cachyos:latest|soft"
 )
 
 names_for() {  # names_for <family> -> package<TAB>min_version

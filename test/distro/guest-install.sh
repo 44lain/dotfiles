@@ -33,6 +33,7 @@ cases=(
 	"debian:trixie|apt-get update -qq && apt-get install -y -qq curl git jq ca-certificates >/dev/null|sudo apt install"
 	"ubuntu:24.04|apt-get update -qq && apt-get install -y -qq curl git jq ca-certificates >/dev/null|sudo apt install"
 	"fedora:43|dnf install -y -q curl git jq >/dev/null|sudo dnf install"
+	"archlinux:latest|pacman -Syu --noconfirm --needed -q curl git jq >/dev/null|sudo pacman -Syu --needed"
 )
 
 fail=0; total=${#cases[@]}; checked=0

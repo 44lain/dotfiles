@@ -113,6 +113,7 @@ FLOW
 cases=(
 	"fedora:43|dnf install -y -q python3 git curl jq >/dev/null|no"
 	"debian:trixie|DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 git curl jq ca-certificates >/dev/null|yes"
+	"archlinux:latest|pacman -Syu --noconfirm --needed -q python git jq >/dev/null && if [ ! -f /root/.bashrc ]; then cp /etc/skel/.bashrc /root/; fi|yes"
 )
 
 fail=0; total=${#cases[@]}; checked=0
