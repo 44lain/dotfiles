@@ -29,6 +29,8 @@ def os_family(path: str | None = None) -> str:
     for line in text.splitlines():
         k, _, v = line.partition("=")
         kv[k] = v.strip().strip('"')
+    if kv.get("ID") == "artix":
+        return "unknown"  # ID_LIKE=arch, but no systemd: the session cannot work
     for word in (kv.get("ID", "") + " " + kv.get("ID_LIKE", "")).split():
         if word in ("fedora", "rhel"):
             return "fedora"

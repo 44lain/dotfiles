@@ -52,6 +52,7 @@ os_family() {
 		v=${v//\"/}
 		case $k in ID) id=$v ;; ID_LIKE) like=$v ;; esac
 	done < "$f"
+	[ "$id" = artix ] && { echo unknown; return; }   # no systemd: unsupported
 	for w in $id $like; do
 		case $w in
 			fedora|rhel) echo fedora; return ;;
@@ -68,7 +69,7 @@ install_hint() {  # install_hint <tool>... -> a line the user can paste
 	case $(os_family) in
 		fedora) echo "  sudo dnf install $*" ;;
 		debian) echo "  sudo apt install $*" ;;
-		arch)   echo "  sudo pacman -S $*" ;;
+		arch)   echo "  sudo pacman -Syu --needed $*" ;;
 		*)      echo "  install with your package manager: $*" ;;
 	esac
 }

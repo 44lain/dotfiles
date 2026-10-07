@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 
+from installer import model
 from installer.model import Env, _default_run
 
 
@@ -41,6 +42,26 @@ class EnvIntegration(unittest.TestCase):
         env = Env()
         result = env.run(["/nonexistent/command"])
         self.assertEqual(result.returncode, 127)
+
+
+class Derivatives(unittest.TestCase):
+    CASES = {
+        'ID=arch\n': "arch",
+        'ID=endeavouros\nID_LIKE=arch\n': "arch",
+        'ID=cachyos\nID_LIKE=arch\n': "arch",
+        'ID=garuda\nID_LIKE=arch\n': "arch",
+        'ID=manjaro\nID_LIKE=arch\n': "arch",
+        'ID="manjaro"\nID_LIKE="arch"\n': "arch",
+        'ID=artix\nID_LIKE=arch\n': "unknown",  # no systemd: the session cannot work
+    }
+
+    def test_families(self):
+        import tempfile
+        for text, want in self.CASES.items():
+            with tempfile.NamedTemporaryFile("w", suffix=".osr", delete=False) as f:
+                f.write(text)
+            self.assertEqual(model.os_family(f.name), want, text)
+            os.unlink(f.name)
 
 
 if __name__ == "__main__":

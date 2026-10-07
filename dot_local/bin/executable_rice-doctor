@@ -20,6 +20,7 @@ os_family() {
 		v=${v//\"/}
 		case $k in ID) id=$v ;; ID_LIKE) like=$v ;; esac
 	done < "$f"
+	[ "$id" = artix ] && { echo unknown; return; }   # no systemd: unsupported
 	for w in $id $like; do
 		case $w in
 			fedora|rhel) echo fedora; return ;;
@@ -61,7 +62,7 @@ family=$(os_family)
 case $family in
 	fedora) inst="sudo dnf install" ;;
 	debian) inst="sudo apt install" ;;
-	arch)   inst="sudo pacman -S" ;;
+	arch)   inst="sudo pacman -Syu --needed" ;;
 	*)      inst="" ;;
 esac
 rows=""; data_failed=""

@@ -24,6 +24,7 @@ family() {
 	[ -r "$OSR" ] || { echo unknown; return; }
 	# shellcheck disable=SC1090 # os-release path is a test hook; its content is plain KEY=value
 	( . "$OSR"
+	  [ "${ID:-}" = artix ] && { echo artix; exit 0; }
 	  for w in ${ID:-} ${ID_LIKE:-}; do
 		case $w in
 			fedora|rhel) echo fedora; exit 0 ;;
@@ -49,6 +50,7 @@ check_python() {
 if have python3; then check_python; fi
 
 fam=$(family)
+[ "$fam" = artix ] && die "Artix is not supported: the session needs systemd (uwsm and systemd user units)."
 missing=""
 have python3 || missing="$missing python3"
 have git     || missing="$missing git"
@@ -70,7 +72,7 @@ if [ -n "$missing" ]; then
 		fedora) pm="${asroot}dnf install -y" ;;
 		debian) upd="${asroot}apt-get update"
 			pm="${asroot}apt-get install -y" ;;
-		arch)   pm="${asroot}pacman -S --needed --noconfirm"
+		arch)   pm="${asroot}pacman -Syu --needed --noconfirm"   # -Syu: a stale database 404s; -Sy alone is a partial upgrade
 			case $missing in *" python3"*) missing="${missing%% python3*} python${missing#*python3}" ;; esac ;;
 		*) die "distro not recognised; install$missing yourself and run this again." ;;
 	esac

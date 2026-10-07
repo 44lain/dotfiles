@@ -263,7 +263,7 @@ else
 fi
 
 # D5. other families
-for pair in "fedora|ID=fedora\n|sudo dnf install pkg-fed" "arch|ID=arch\n|sudo pacman -S pkg-arch"; do
+for pair in "fedora|ID=fedora\n|sudo dnf install pkg-fed" "arch|ID=arch\n|sudo pacman -Syu --needed pkg-arch"; do
 	IFS='|' read -r name osr want <<<"$pair"
 	reset_healthy; pkgs_json; os_release "$osr"
 	out=$(run 2>&1)
@@ -309,8 +309,11 @@ Ubuntu|ID=ubuntu\nID_LIKE=debian\n|sudo apt install
 Linux Mint|ID=linuxmint\nID_LIKE="ubuntu debian"\n|sudo apt install
 Kali|ID=kali\nID_LIKE=debian\n|sudo apt install
 Raspberry Pi OS|ID=raspbian\nID_LIKE=debian\n|sudo apt install
-Manjaro|ID=manjaro\nID_LIKE=arch\n|sudo pacman -S
+Manjaro|ID=manjaro\nID_LIKE=arch\n|sudo pacman -Syu --needed
 Rocky|ID="rocky"\nID_LIKE="rhel centos fedora"\n|sudo dnf install
+EndeavourOS|ID=endeavouros\nID_LIKE=arch\n|sudo pacman -Syu --needed
+CachyOS|ID=cachyos\nID_LIKE=arch\n|sudo pacman -Syu --needed
+Garuda|ID=garuda\nID_LIKE=arch\n|sudo pacman -Syu --needed
 EOF
 
 # D9. every listed tool present -> ok summary, exit 0

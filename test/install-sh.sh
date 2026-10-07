@@ -240,6 +240,29 @@ else
 	flunk "install.sh all present with jq (rc=$rc out=<$out>)"
 fi
 
+# 17. arch: one form only, pacman -Syu --needed (never -S alone, never -Sy); python3 -> python
+printf 'ID=endeavouros\nID_LIKE=arch\n' > "$sandbox/os-release-eos"
+rm -f "$sandbox/bin/git"; : > "$log"
+out=$(RICE_OS_RELEASE="$sandbox/os-release-eos" run "n
+"); rc=$?
+if printf '%s' "$out" | grep -q 'sudo pacman -Syu --needed --noconfirm git' && ! printf '%s' "$out" | grep -qE 'pacman -S(y)? '; then
+	pass "install.sh: arch derivative -> pacman -Syu --needed"
+else
+	flunk "install.sh arch form (rc=$rc out=<$out>)"
+fi
+fake git 0
+
+# 18. artix (ID_LIKE=arch but no systemd) is refused before anything is asked
+printf 'ID=artix\nID_LIKE=arch\n' > "$sandbox/os-release-artix"
+: > "$log"
+out=$(RICE_OS_RELEASE="$sandbox/os-release-artix" run "y
+"); rc=$?
+if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q 'Artix is not supported' && ! grep -q '^sudo' "$log" && ! grep -q '^python3 -m installer' "$log"; then
+	pass "install.sh: artix -> refused with a clear line, nothing run"
+else
+	flunk "install.sh artix (rc=$rc out=<$out>)"
+fi
+
 # 11. the hard re-ignore of secret-looking names beats the installer allowlist
 touch "$repo/installer/token_x.py"
 if git -C "$repo" check-ignore -q installer/token_x.py && ! git -C "$repo" check-ignore -q installer/model.py; then
