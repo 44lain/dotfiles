@@ -14,6 +14,7 @@ from typing import Callable
 
 FAMILIES = ("fedora", "debian", "arch")
 REPO_FAMILY = {"apt-repo": "debian", "dnf-copr": "fedora"}
+PACMAN_SYNC_DB = "/var/lib/pacman/sync/core.db"  # absent until the first `pacman -Sy(u)`
 
 
 def os_family(path: str | None = None) -> str:
@@ -242,7 +243,8 @@ def _install_cmd(family: str, flag: str, names: list) -> list:
     if family == "debian":
         return ["apt-get", "install", "-y", *f, *names]
     if family == "arch":
-        return ["pacman", "-S", "--needed", "--noconfirm", *names]
+        # -Syu, always: a stale database 404s and -Sy alone is an unsupported partial upgrade
+        return ["pacman", "-Syu", "--needed", "--noconfirm", *names]
     raise ValueError(f"no package manager for family {family!r}")
 
 
@@ -285,7 +287,7 @@ def _tail(text: str, n: int = 6) -> str:
 
 
 def simulate(step: Step, family: str, env: Env):
-    """('ok'|'fail'|'timeout'|'skipped', output tail). Dry run of the distro package step."""
+    """('ok'|'fail'|'timeout'|'unsynced'|'skipped', output tail). Dry run of the distro package step."""
     if step.kind != "packages" or not step.sim_names:
         return ("skipped", "")
     f = step.flag.split() if step.flag else []
@@ -294,6 +296,8 @@ def simulate(step: Step, family: str, env: Env):
     elif family == "fedora":
         argv = ["dnf", "install", "--assumeno", *step.sim_names]
     elif family == "arch":
+        if not env.exists(PACMAN_SYNC_DB):
+            return ("unsynced", "")  # -Sp would say "not found" for everything; the step syncs
         argv = ["pacman", "-Sp", *step.sim_names]
     else:
         return ("skipped", "")

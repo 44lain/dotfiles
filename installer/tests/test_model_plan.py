@@ -53,8 +53,9 @@ class Plan(unittest.TestCase):
         self.assertNotEqual(steps[1].id, steps[2].id)
 
     def test_pacman_command(self):
+        # Review Focus 1: a present-but-stale database still syncs: -Syu, never -S alone
         steps = model.build_plan([st("a")], {"a"}, "arch")
-        self.assertEqual(steps[0].commands, [["pacman", "-S", "--needed", "--noconfirm", "a"]])
+        self.assertEqual(steps[0].commands, [["pacman", "-Syu", "--needed", "--noconfirm", "a"]])
 
     def test_sim_names_exclude_items_that_need_a_repo(self):
         r = {"kind": "apt-repo", "source_file": "/x"}
@@ -77,6 +78,21 @@ class Simulate(unittest.TestCase):
         self.assertEqual(status, "fail")
         self.assertIn("Unable to correct", text)
 
+    def test_pacman_without_a_sync_database_is_unsynced_not_a_failure(self):
+        env = make_env(outputs={"pacman -Sp kitty": cp(1, "error: target not found: kitty\n")})
+        self.assertEqual(model.simulate(self.step("arch"), "arch", env), ("unsynced", ""))
+        self.assertEqual(env.calls, [])  # nothing was run
+
+    def test_pacman_with_a_sync_database_runs_the_dry_run(self):
+        ok = make_env(outputs={"pacman -Sp kitty": cp(0, "https://m/kitty.pkg.tar.zst\n")},
+                      exists={model.PACMAN_SYNC_DB})
+        self.assertEqual(model.simulate(self.step("arch"), "arch", ok)[0], "ok")
+        bad = make_env(outputs={"pacman -Sp kitty": cp(1, "error: target not found: kitty\n")},
+                       exists={model.PACMAN_SYNC_DB})
+        status, text = model.simulate(self.step("arch"), "arch", bad)
+        self.assertEqual(status, "fail")
+        self.assertIn("target not found", text)
+
     def test_apt_uses_suite_flag(self):
         env = make_env(outputs={"apt-get -s install -t echo-backports kitty": cp(0, "ok")})
         self.assertEqual(model.simulate(self.step(flag="-t echo-backports"), "debian", env)[0], "ok")
@@ -91,7 +107,7 @@ class Simulate(unittest.TestCase):
         self.assertEqual(env.kwargs[0].get("timeout"), 300)
         self.assertEqual(env.kwargs[0]["env"]["LC_ALL"], "C")
         for fam, line in (("fedora", "dnf install --assumeno kitty"), ("arch", "pacman -Sp kitty")):
-            env = make_env(outputs={line: cp(0, "")})
+            env = make_env(outputs={line: cp(0, "")}, exists={model.PACMAN_SYNC_DB})
             model.simulate(self.step(fam), fam, env)
             self.assertEqual((env.kwargs[0].get("timeout"), env.kwargs[0]["env"]["LC_ALL"]), (300, "C"))
 

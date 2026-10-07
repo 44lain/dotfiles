@@ -82,6 +82,8 @@ MESSAGES = {
     "plan.sim_ok": "Simulação sem problemas.",
     "plan.sim_fail": "A simulação encontrou um problema:",
     "plan.sim_timeout": "A simulação não terminou a tempo, então este passo não foi verificado. Continuar é seguro; apenas não foi conferido.",
+    "plan.sim_unsynced": "Não verificado: o banco de pacotes ainda não foi sincronizado. O passo de instalação sincroniza (pacman -Syu).",
+    "plan.arch_upgrades": "No Arch, instalar também atualiza o sistema (pacman -Syu): é o único jeito suportado de instalar lá.",
     "plan.sim_failed_warn": "A simulação apontou um problema acima. Você pode continuar, mas a instalação provavelmente vai falhar.",
     "plan.summary": "{n} passo(s) planejado(s). A lista acima rola; leia antes de confirmar.",
     "plan.no_revert": "Os pacotes instalados NÃO são removidos por rice rollback nem rice uninstall. A configuração aplicada pode ser revertida com rice rollback.",

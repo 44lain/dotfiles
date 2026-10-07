@@ -229,6 +229,8 @@ def plan_screen(ui, s):
         elif status == "timeout":
             timed_out = True
             rows.append(["    ...  " + t("plan.sim_timeout")])
+        elif status == "unsynced":
+            rows.append(["    ...  " + t("plan.sim_unsynced")])
         rows.append([""])
     r = ui.table([t("plan.title")], rows)
     if r is BACK or r is CANCEL:
@@ -239,6 +241,8 @@ def plan_screen(ui, s):
     if timed_out:
         ui.warn(t("plan.sim_timeout"))
     ui.warn(t("plan.no_revert"))
+    if s.family == "arch" and any(st.kind == "packages" for st in plan):
+        ui.warn(t("plan.arch_upgrades"))
     if dropped:
         ui.warn(t("plan.required_unticked", items=", ".join(dropped)))
     c = ui.confirm(t("plan.confirm"), default=False)

@@ -81,6 +81,15 @@ class Execute(Base):
             recipes.execute(self.step(), self.ctx)
         self.assertIn("Unable to locate", str(cm.exception))
 
+    def test_pacman_failure_carries_the_output_tail(self):
+        # Review Focus 2: --noconfirm makes pacman abort, never hang; the tail reaches the user
+        step = model.build_plan([model.Status(key="kitty", desc="kitty", required=True, state="missing",
+                                              source="distro", name="kitty")], {"kitty"}, "arch")[0]
+        self.ctx.runner = lambda argv, on_line=None: cp(1, "error: failed to commit transaction (conflicting files)\n")
+        with self.assertRaises(RecipeError) as cm:
+            recipes.execute(step, self.ctx)
+        self.assertIn("conflicting files", str(cm.exception))
+
     def test_expired_sudo_is_its_own_error(self):
         self.ctx.runner = lambda argv, on_line=None: cp(1, "sudo: a password is required\n")
         with self.assertRaises(SudoExpired):

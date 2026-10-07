@@ -89,6 +89,8 @@ MESSAGES = {
     "plan.sim_ok": "Dry run passed.",
     "plan.sim_fail": "Dry run found a problem:",
     "plan.sim_timeout": "Dry run could not finish in time, so this step is unverified. Continuing is safe; it just was not checked.",
+    "plan.sim_unsynced": "Not checked: the package database is not synced yet. The install step syncs it (pacman -Syu).",
+    "plan.arch_upgrades": "On Arch, installing also upgrades the system (pacman -Syu): that is the only supported way to install there.",
     "plan.sim_failed_warn": "The dry run reported a problem above. You can still continue, but the install will probably fail.",
     "plan.summary": "{n} step(s) planned. The list above scrolls; read it before you confirm.",
     "plan.no_revert": "Installed packages are NOT removed by rice rollback or rice uninstall. Applied configuration can be reverted with rice rollback.",

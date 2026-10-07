@@ -203,6 +203,23 @@ class Plan(Base):
         s.statuses = model.scan(model.load_packages(s.repo / ".chezmoidata/packages.toml"), s.family, env)
         return s
 
+    def test_arch_plan_says_it_upgrades_and_marks_an_unsynced_dry_run(self):
+        env = make_env(home=self.home, which={"kitty"})  # no sync database
+        s = self.state(env=env, family="arch")
+        s.statuses = model.scan(model.load_packages(s.repo / ".chezmoidata/packages.toml"), s.family, env)
+        ui = FakeUI(["rofi"], "next", True)
+        self.assertEqual(screens.plan_screen(ui, s), "next")
+        table = " ".join(ui.table_lines())
+        self.assertIn("sudo pacman -Syu --needed --noconfirm rofi", table)
+        self.assertIn("not synced yet", table)
+        self.assertNotIn("FAIL", table)
+        self.assertIn("pacman -Syu", ui.text_of("warn"))
+
+    def test_non_arch_plan_has_no_upgrade_notice(self):
+        ui = FakeUI(["rofi"], "next", True)
+        screens.plan_screen(ui, self.prepared())
+        self.assertNotIn("upgrades the system", ui.text_of("warn"))
+
     def test_declining_the_confirmation_installs_nothing(self):
         # Review Focus 1
         ui = FakeUI(["rofi"], "next", False)
