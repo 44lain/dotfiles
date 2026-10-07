@@ -5,29 +5,51 @@
 #   S2  the real CursesUI in a 30x100 xterm pty: whole walk with key presses, back, Ctrl-C, ESC
 #   S3  install.sh the way a stranger runs it (no git/curl/python3/chezmoi yet), through a tty
 #   S4  robustness: closed stdin, `rice` without a tty, `rice tui`, onboard re-run, uninstall
-# Usage: installer-e2e.sh [-s S1,S2,S3,S4] [-d debian,fedora] [-k]   (-k keeps the transcripts)
-# Needs docker + network (apt/dnf downloads, get.chezmoi.io); slow (minutes), so it is NOT part of
-# `make test` or `make distro-check`: run it with `make e2e-check`.
+# Each family x group is a CELL (S1S4, S2, S3raw, S3file, S3pipe); cells run in parallel.
+# Usage: installer-e2e.sh [-s S1,S2,S3,S4] [-d debian,fedora,arch] [-j N] [-v] [--failed] [--rebuild]
+#   -j N       cells at once (default 3); -j 1 is sequential, for when pty timings flake under load
+#   -v         print every proof line, not only the one-line verdict per cell
+#   --failed   re-run only the cells that failed last time
+#   --rebuild  rebuild the cached base images even if they are fresh
+# Transcripts: ${XDG_CACHE_HOME:-~/.cache}/rice-e2e/last/<cell>.out (kept; overwritten per run).
+# Needs docker + network; slow, so it is NOT part of `make test` or `make distro-check`:
+# run it with `make e2e-check` (E2E_ARGS="-d arch -v" passes options).
 # The pty driver (e2e_driver.py) has its own VT100 emulator and uses only the Python stdlib.
 set -uo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
-want_s=S1,S2,S3,S4 want_d=debian,fedora keep=0
-while getopts 's:d:k' o; do
-	case $o in s) want_s=$OPTARG ;; d) want_d=$OPTARG ;; k) keep=1 ;; *) exit 2 ;; esac
+want_s=S1,S2,S3,S4 want_d=debian,fedora,arch jobs=3 verbose=0 only_failed=0 rebuild=0
+while [ $# -gt 0 ]; do
+	case $1 in
+		-s) want_s=$2; shift ;;
+		-d) want_d=$2; shift ;;
+		-j) jobs=$2; shift ;;
+		-v) verbose=1 ;;
+		--failed) only_failed=1 ;;
+		--rebuild) rebuild=1 ;;
+		*) echo "unknown option: $1" >&2; exit 2 ;;
+	esac
+	shift
 done
+: "$rebuild"   # accepted for the cached-image work in Task 5; nothing is cached yet
 if ! command -v docker >/dev/null 2>&1; then
 	echo "docker not found — skipped"
 	[ "${CI:-}" = true ] && { echo "FAIL: CI must not skip the installer e2e test"; exit 1; }
 	exit 0
 fi
 
+last=${XDG_CACHE_HOME:-$HOME/.cache}/rice-e2e/last
+mkdir -p "$last"
 tmp=$(mktemp -d)
 # shellcheck disable=SC2329 # invoked by the EXIT trap
 cleanup() {
+	trap '' INT TERM   # `timeout -s INT` signals the whole group a second time: finish cleaning
+	# shellcheck disable=SC2046 # word splitting of the pid list is intended
+	kill $(jobs -p) 2>/dev/null
 	docker ps -aq --filter "name=rice-e2e-$$-" | xargs -r docker rm -f >/dev/null 2>&1
-	if [ "$keep" -eq 1 ]; then echo "transcripts kept in $tmp"; else rm -rf "${tmp:?}"; fi
+	rm -rf "${tmp:?}"
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 cp "$(dirname "$0")/e2e_driver.py" "$tmp/"
 
 # ---- what runs INSIDE the container -------------------------------------------------
@@ -250,69 +272,100 @@ exit 0
 S3
 
 # ---- orchestration (host) -------------------------------------------------------------
+declare -A image=([fedora]=fedora:43 [debian]=debian:trixie)
 declare -A prep=(
 	[fedora]="dnf install -y -q python3 git curl jq >/dev/null"
 	[debian]="DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 git curl jq ca-certificates >/dev/null"
 )
-declare -A image=([fedora]=fedora:43 [debian]=debian:trixie)
 declare -A fcmd=([fedora]="dnf install -y" [debian]="apt-get install -y")
 declare -A loader=([fedora]=no [debian]=yes)
+# S3 raw: what the stock image prints when install.sh forgets to refresh the package lists
+# (fedora has no such cell: dnf refreshes its metadata itself)
+declare -A rawfail=([debian]="Unable to locate package")
 pkg=${E2E_PKG:-fzf}
-fail=0 checked=0 total=0 results=()
 has() { case ",$2," in *",$1,"*) return 0 ;; esac; return 1; }
 
-summarize() {  # summarize <label> <output file>: print the proofs, count failures
-	local label=$1 out=$2 bad
-	bad=$(grep -c '^E2E-CHECK FAIL' "$out")
-	grep -E '^E2E-CHECK|^S[0-9].*took|^machine:|^E2E-NOTE|^screens seen' "$out" | sed 's/^/  /'
-	if [ "$bad" -eq 0 ] && grep -q '^E2E-CHECK ok' "$out"; then results+=("PASS $label"); echo "  => PASS $label"
+run_in() {  # run_in <family> <cell> <script> [docker -e args...]   (stdout = transcript)
+	local f=$1 cell=$2 script=$3; shift 3
+	docker run --rm --name "rice-e2e-$$-$cell" -v "$repo:/repo:ro" -v "$tmp:/rice:ro" \
+		-e PREP="${prep[$f]}" -e PKG="$pkg" -e FAMILY_CMD="${fcmd[$f]}" -e LOADER="${loader[$f]}" \
+		"$@" "${image[$f]}" bash "/rice/$script"
+}
+
+run_cell() {  # run_cell <family> <group>: writes $last/<cell>.out and .secs, never the console
+	local f=$1 g=$2 cell="$1-$2" t0=$SECONDS scen expect rc dcmd
+	case $g in
+		S1S4) run_in "$f" "$cell" s1s4.sh ;;
+		S2) run_in "$f" "$cell" s2.sh ;;
+		S3raw)
+			docker run --rm --name "rice-e2e-$$-$cell" -v "$tmp/dotfiles:/work/dotfiles:ro" \
+				-e RICE_REPO_URL=file:///work/dotfiles -e RAWFAIL="${rawfail[$f]}" "${image[$f]}" bash -c '
+				[ -f ~/.bashrc ] || cp /etc/skel/.bashrc ~/ 2>/dev/null
+				echo y > /tmp/y; RICE_TTY=/tmp/y sh /work/dotfiles/install.sh --lang en > /tmp/o 2>&1; rc=$?; cat /tmp/o
+				if [ $rc -eq 0 ] || ! grep -qE "$RAWFAIL" /tmp/o; then echo "E2E-CHECK ok S3 raw: install.sh got past the prerequisites on the stock image"
+				else echo "E2E-CHECK FAIL S3 raw: install.sh dies on the stock image with a package-database error (exit $rc): it never refreshes the package lists"; fi' ;;
+		S3file|S3pipe)
+			if [ "$g" = S3file ]; then scen=walk expect=installed rc=0; else scen=cancel expect=cancelled rc=1; fi
+			dcmd="docker run -it --rm --name rice-e2e-$$-$cell -v $tmp:/rice:ro -v $tmp/dotfiles:/work/dotfiles:ro -e TERM=xterm -e LANG=C.UTF-8 -e PREP=x -e PKG=$pkg -e S3_MODE=${g#S3} -e S3_EXPECT=$expect -e S3_RC=$rc ${image[$f]} bash /rice/s3.sh"
+			python3 "$tmp/e2e_driver.py" "$scen" --prelude --pkg "$pkg" --expect-exit 0 --cmd "$dcmd" ;;
+	esac > "$last/$cell.out" 2>&1
+	echo $((SECONDS - t0)) > "$last/$cell.secs"
+}
+
+report() {  # report <cell>: one verdict line (+ proofs with -v, + failure excerpt on FAIL)
+	local cell=$1 out="$last/$1.out" bad n secs
+	bad=$(grep -c '^E2E-CHECK FAIL' "$out"); n=$(grep -c '^E2E-CHECK' "$out")
+	secs=$(cat "$last/$cell.secs" 2>/dev/null || echo '?')
+	if [ "$bad" -eq 0 ] && [ "$n" -gt 0 ]; then
+		printf 'PASS %-16s %4ss  %s checks\n' "$cell" "$secs" "$n" | tee -a "$last/results"
+		[ "$verbose" -eq 0 ] || grep -E '^E2E-CHECK|took|^machine:|^E2E-NOTE|^screens seen' "$out" | sed 's/^/    /'
 	else
-		results+=("FAIL $label"); echo "  => FAIL $label ($bad failed checks; full transcript below)"
-		cat "$out"; fail=1
+		printf 'FAIL %-16s %4ss  %s of %s checks failed\n' "$cell" "$secs" "$bad" "$n" | tee -a "$last/results"
+		grep '^E2E-CHECK FAIL' "$out" | sed 's/^/    /'
+		echo "    --- last 30 lines of $out"
+		tail -30 "$out" | sed 's/^/    | /'
+		fail=1
 	fi
-}
-run_in() {  # run_in <distro> <name> <script> <outfile> [docker -e args...]
-	local d=$1 name=$2 script=$3 out=$4; shift 4
-	docker run --rm --name "rice-e2e-$$-$name" -v "$repo:/repo:ro" -v "$tmp:/rice:ro" \
-		-e PREP="${prep[$d]}" -e PKG="$pkg" -e FAMILY_CMD="${fcmd[$d]}" -e LOADER="${loader[$d]}" \
-		"$@" "${image[$d]}" bash "/rice/$script" > "$out" 2>&1
 }
 
-for d in debian fedora; do
-	has "$d" "$want_d" || continue
-	echo "################ ${image[$d]}"
-	docker image inspect "${image[$d]}" >/dev/null 2>&1 || docker pull -q "${image[$d]}" >/dev/null 2>&1 || { echo "  cannot pull ${image[$d]} — skipped"; continue; }
-	checked=$((checked + 1))
-	if has S1 "$want_s" || has S4 "$want_s"; then
-		total=$((total + 1)); echo "== S1+S4 (plain flow, real install, robustness) on ${image[$d]}"
-		run_in "$d" s1s4 s1s4.sh "$tmp/$d-s1s4.out"; summarize "S1+S4 ${image[$d]}" "$tmp/$d-s1s4.out"
-	fi
-	if has S2 "$want_s"; then
-		total=$((total + 1)); echo "== S2 (curses via pty, inside the container) on ${image[$d]}"
-		run_in "$d" s2 s2.sh "$tmp/$d-s2.out"; summarize "S2 ${image[$d]}" "$tmp/$d-s2.out"
-	fi
-	if has S3 "$want_s"; then
-		rm -rf "$tmp/dotfiles"; git clone -q --no-hardlinks "$repo" "$tmp/dotfiles"
-		if [ "$d" = debian ]; then   # the stock image has no apt lists: what does a stranger on a fresh machine see?
-			total=$((total + 1)); echo "== S3 raw (no tty needed: RICE_TTY test hook) on ${image[$d]}: install.sh on the untouched image"
-			docker run --rm --name "rice-e2e-$$-s3raw" -v "$tmp/dotfiles:/work/dotfiles:ro" -e RICE_REPO_URL=file:///work/dotfiles \
-				"${image[$d]}" bash -c 'echo y > /tmp/y; RICE_TTY=/tmp/y sh /work/dotfiles/install.sh --lang en > /tmp/o 2>&1; rc=$?; cat /tmp/o
-				if [ $rc -eq 0 ] || ! grep -q "Unable to locate package" /tmp/o; then echo "E2E-CHECK ok S3 raw: install.sh got past the prerequisites on the stock image"
-				else echo "E2E-CHECK FAIL S3 raw: install.sh dies with apt Unable to locate package on the stock image (exit $rc): it never runs apt-get update"; fi' > "$tmp/$d-s3raw.out" 2>&1
-			summarize "S3 raw ${image[$d]}" "$tmp/$d-s3raw.out"
+# the cells to run
+cells=()
+if [ "$only_failed" -eq 1 ]; then
+	[ -f "$last/results" ] || { echo "no previous results in $last"; exit 2; }
+	mapfile -t cells < <(awk '$1 == "FAIL" {print $2}' "$last/results")
+	[ "${#cells[@]}" -gt 0 ] || { echo "nothing failed last time"; exit 0; }
+else
+	for f in debian fedora arch; do
+		has "$f" "$want_d" && [ -n "${image[$f]:-}" ] || continue
+		{ has S1 "$want_s" || has S4 "$want_s"; } && cells+=("$f-S1S4")
+		has S2 "$want_s" && cells+=("$f-S2")
+		if has S3 "$want_s"; then
+			[ -n "${rawfail[$f]:-}" ] && cells+=("$f-S3raw")
+			cells+=("$f-S3file" "$f-S3pipe")
 		fi
-		for mode in file pipe; do
-			total=$((total + 1)); echo "== S3 one-liner path ($mode) on ${image[$d]}: plain image, real install.sh through a tty"
-			if [ "$mode" = file ]; then scen=walk; expect=installed; rc=0; else scen=cancel; expect=cancelled; rc=1; fi
-			dcmd="docker run -it --rm --name rice-e2e-$$-s3$mode -v $tmp:/rice:ro -v $tmp/dotfiles:/work/dotfiles:ro -e TERM=xterm -e LANG=C.UTF-8 -e PREP=x -e PKG=$pkg -e S3_MODE=$mode -e S3_EXPECT=$expect -e S3_RC=$rc ${image[$d]} bash /rice/s3.sh"
-			python3 "$tmp/e2e_driver.py" "$scen" --prelude --pkg "$pkg" --expect-exit 0 --cmd "$dcmd" > "$tmp/$d-s3$mode.out" 2>&1
-			summarize "S3 $mode ${image[$d]}" "$tmp/$d-s3$mode.out"
-		done
-	fi
-done
+	done
+fi
+for c in "${cells[@]}"; do rm -f "$last/$c.out" "$last/$c.secs"; done
+: > "$last/results"
 
-echo "================ matrix"
-printf '  %s\n' "${results[@]}"
-echo "$checked images checked, $total scenario groups"
-if [ "$checked" -eq 0 ] && [ "${CI:-}" = true ]; then echo "FAIL: images were skipped in CI"; fail=1; fi
+# images (pulled once, before any cell starts)
+fams=$(printf '%s\n' "${cells[@]}" | cut -d- -f1 | sort -u)
+for f in $fams; do
+	docker image inspect "${image[$f]}" >/dev/null 2>&1 || docker pull -q "${image[$f]}" >/dev/null 2>&1 \
+		|| { echo "cannot pull ${image[$f]}"; [ "${CI:-}" = true ] && exit 1; }
+done
+case " ${cells[*]}" in *-S3*) git clone -q --no-hardlinks "$repo" "$tmp/dotfiles" ;; esac
+
+# the pool: at most $jobs cells at once
+echo "${#cells[@]} cells, $jobs at a time; transcripts in $last"
+t_all=$SECONDS
+for c in "${cells[@]}"; do
+	while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do wait -n; done
+	run_cell "${c%%-*}" "${c#*-}" &
+done
+wait
+
+fail=0
+for c in "${cells[@]}"; do report "$c"; done
+echo "================ ${#cells[@]} cells in $((SECONDS - t_all))s"
 exit $fail
