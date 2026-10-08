@@ -32,6 +32,7 @@ autostart = [
   "blueman-applet",
   "/usr/bin/kdeconnectd",
   "kdeconnect-indicator",
+  "rec replay",          # replay buffer (last 60 s); SUPER+CTRL+R saves a clip
 ]
 
 [hosts.pentest]

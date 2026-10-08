@@ -320,6 +320,9 @@ hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
 -- ---- Screenshot (grim/slurp — nativo Wayland; Spectacle não captura sob Hyprland) ----
 -- Salva em $(xdg-user-dir PICTURES)/Screenshots e copia p/ área de transferência. Remova o
 -- `&& notify-send ...` de cada linha se quiser captura 100% silenciosa.
+-- Clipes / gravação (gpu-screen-recorder via ~/.local/bin/rec; replay sobe no login, ver hosts.toml)
+hl.bind(mod .. " + CTRL + R",         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/rec clip"))
+hl.bind(mod .. " + CTRL + SHIFT + R", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.local/bin/rec toggle"))
 hl.bind(mod .. " + P",         hl.dsp.exec_cmd(
     [==[d="$(xdg-user-dir PICTURES)/Screenshots"; mkdir -p "$d"; f="$d/scr-$(date +%Y%m%d-%H%M%S).png"; grim -g "$(slurp)" "$f" && wl-copy < "$f" && notify-send -t 1500 "Screenshot" "$f"]==]))
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(

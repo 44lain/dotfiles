@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# rec — screen recording and replay clips with gpu-screen-recorder.
+# The encoder runs on the GPU (NVENC/VAAPI), so CPU cost is close to zero —
+# fine next to a CPU-bound game. Needs: gpu-screen-recorder, jq, notify-send.
+#
+#   rec replay   start the replay buffer: the last 60 s are kept in RAM
+#   rec clip     save the buffer to a file (bound to SUPER+CTRL+R)
+#   rec toggle   start / stop a full recording (SUPER+CTRL+SHIFT+R)
+#   rec status   what is running
+#   rec stop     stop everything
+#
+# Knobs (environment): REC_DIR, REC_SECONDS, REC_FPS, REC_QUALITY, REC_AUDIO.
+set -euo pipefail
+
+dir=${REC_DIR:-$HOME/Vídeos/clips}
+seconds=${REC_SECONDS:-60}
+fps=${REC_FPS:-60}
+quality=${REC_QUALITY:-medium}          # medium | high | very_high | ultra
+audio=${REC_AUDIO:-default_output}      # "default_output|default_input" also mixes the mic in
+run=${XDG_RUNTIME_DIR:-/tmp}/rec
+mkdir -p "$dir" "$run"
+
+say() { notify-send -a rec -t 2500 "$1" "${2:-}" 2>/dev/null || true; }
+
+# Monitor to capture: the focused one (the game), else the first one.
+monitor() {
+	hyprctl monitors -j 2>/dev/null | jq -r '(map(select(.focused))[0] // .[0]).name' 2>/dev/null || echo screen
+}
+
+alive() { [ -f "$run/$1.pid" ] && kill -0 "$(cat "$run/$1.pid")" 2>/dev/null; }
+
+common() { printf '%s\n' -w "$(monitor)" -f "$fps" -q "$quality" -a "$audio"; }
+
+case "${1:-}" in
+	replay)
+		alive replay && { echo "replay already running"; exit 0; }
+		mapfile -t args < <(common)
+		gpu-screen-recorder "${args[@]}" -c mp4 -r "$seconds" -o "$dir" >/dev/null 2>&1 &
+		echo $! > "$run/replay.pid"
+		say "Replay on" "last ${seconds}s, SUPER+CTRL+R saves"
+		;;
+	clip)
+		alive replay || { say "Replay is not running" "start it with: rec replay"; exit 1; }
+		kill -USR1 "$(cat "$run/replay.pid")"
+		say "Clip saved" "$dir"
+		;;
+	toggle)
+		if alive rec; then
+			kill -INT "$(cat "$run/rec.pid")"; rm -f "$run/rec.pid"
+			say "Recording stopped" "$dir"
+		else
+			mapfile -t args < <(common)
+			gpu-screen-recorder "${args[@]}" -c mp4 -o "$dir/rec-$(date +%Y%m%d-%H%M%S).mp4" >/dev/null 2>&1 &
+			echo $! > "$run/rec.pid"
+			say "Recording" "SUPER+CTRL+SHIFT+R stops"
+		fi
+		;;
+	status)
+		for n in replay rec; do alive "$n" && echo "$n: running" || echo "$n: stopped"; done
+		;;
+	stop)
+		for n in replay rec; do alive "$n" && kill -INT "$(cat "$run/$n.pid")"; rm -f "$run/$n.pid"; done
+		;;
+	*)
+		sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+		exit 2
+		;;
+esac
