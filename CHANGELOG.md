@@ -8,6 +8,7 @@ keys, installer flags) can still change between minors.
 
 ### Added
 - Screenshots in the README (personal details blurred).
+- `rec`: replay clips and screen recording with gpu-screen-recorder (`SUPER+CTRL+R` saves the last 60 s, `SUPER+CTRL+SHIFT+R` toggles a full recording, sticky REC notification and sounds). See `docs/recording.md`.
 
 ## [0.1.0] - 2026-10-08
 
