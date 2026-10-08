@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# rec — screen recording and replay clips with gpu-screen-recorder.
+# The encoder runs on the GPU (NVENC/VAAPI), so CPU cost is close to zero —
+# fine next to a CPU-bound game. Needs: gpu-screen-recorder, jq, notify-send.
+#
+#   rec replay   start the replay buffer: the last 60 s are kept in RAM
+#   rec clip     save the buffer to a file (bound to SUPER+CTRL+R)
+#   rec toggle   start / stop a full recording (SUPER+CTRL+SHIFT+R)
+#   rec status   what is running
+#   rec stop     stop everything
+#
+# Knobs (environment): REC_DIR, REC_SECONDS, REC_FPS, REC_QUALITY, REC_AUDIO.
+set -euo pipefail
+
+dir=${REC_DIR:-$HOME/Vídeos/clips}
+seconds=${REC_SECONDS:-60}
+fps=${REC_FPS:-60}
+quality=${REC_QUALITY:-medium}          # medium | high | very_high | ultra
+audio=${REC_AUDIO:-default_output}      # "default_output|default_input" also mixes the mic in
+# PID files live in a private directory: $XDG_RUNTIME_DIR, else ~/.cache. Never /tmp,
+# where another user could plant a PID file and have `kill` hit an arbitrary process.
+run=${XDG_RUNTIME_DIR:-$HOME/.cache}/rec
+mkdir -p "$dir"
+mkdir -p "$run"
+chmod 700 "$run"
+[ -O "$run" ] || { echo "rec: $run is not owned by you" >&2; exit 1; }
+
+say() { notify-send -a rec -t 2500 "$1" "${2:-}" 2>/dev/null || true; }
+
+# Short audio cue (freedesktop sound theme); silent if pw-play or the sound is missing.
+cue() { pw-play "/usr/share/sounds/freedesktop/stereo/$1.oga" >/dev/null 2>&1 & }
+
+# A full recording shows a sticky "REC" notification until the recorder exits, however it
+# ends (rec toggle, rec stop, a crash, a full disk). The watcher closes it and says where
+# the file went.
+rec_watch() {
+	local pid=$1 file=$2 nid
+	nid=$(notify-send -p -a rec -u critical -t 0 "● REC" "recording, SUPER+CTRL+SHIFT+R stops" 2>/dev/null || true)
+	cue device-added
+	(
+		while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+		[ -n "$nid" ] && gdbus call --session --dest org.freedesktop.Notifications \
+			--object-path /org/freedesktop/Notifications \
+			--method org.freedesktop.Notifications.CloseNotification "$nid" >/dev/null 2>&1
+		cue device-removed
+		say "Recording saved" "${file/#$HOME/~}"
+	) >/dev/null 2>&1 &
+}
+
+# Monitor to capture: the focused one (the game), else the first one.
+monitor() {
+	hyprctl monitors -j 2>/dev/null | jq -r '(map(select(.focused))[0] // .[0]).name' 2>/dev/null || echo screen
+}
+
+# A PID file only counts if that process is really gpu-screen-recorder.
+alive() {
+	[ -f "$run/$1.pid" ] || return 1
+	local pid; pid=$(cat "$run/$1.pid")
+	[[ $pid =~ ^[0-9]+$ ]] && [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = gpu-screen-reco ]
+}
+
+common() { printf '%s\n' -w "$(monitor)" -f "$fps" -q "$quality" -a "$audio"; }
+
+case "${1:-}" in
+	replay)
+		alive replay && { echo "replay already running"; exit 0; }
+		mapfile -t args < <(common)
+		gpu-screen-recorder "${args[@]}" -c mp4 -r "$seconds" -o "$dir" >/dev/null 2>&1 &
+		echo $! > "$run/replay.pid"
+		say "Replay on" "last ${seconds}s, SUPER+CTRL+R saves"
+		;;
+	clip)
+		alive replay || { say "Replay is not running" "start it with: rec replay"; exit 1; }
+		kill -USR1 "$(cat "$run/replay.pid")"
+		cue camera-shutter
+		say "Clip saved" "${dir/#$HOME/~}"
+		;;
+	toggle)
+		if alive rec; then
+			kill -INT "$(cat "$run/rec.pid")"; rm -f "$run/rec.pid"   # the watcher announces the end
+		else
+			mapfile -t args < <(common)
+			file="$dir/rec-$(date +%Y%m%d-%H%M%S).mp4"
+			gpu-screen-recorder "${args[@]}" -c mp4 -o "$file" >/dev/null 2>&1 &
+			echo $! > "$run/rec.pid"
+			rec_watch $! "$file"
+		fi
+		;;
+	status)
+		for n in replay rec; do alive "$n" && echo "$n: running" || echo "$n: stopped"; done
+		;;
+	stop)
+		for n in replay rec; do alive "$n" && kill -INT "$(cat "$run/$n.pid")"; rm -f "$run/$n.pid"; done
+		;;
+	*)
+		sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+		exit 2
+		;;
+esac
