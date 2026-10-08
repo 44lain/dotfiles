@@ -521,7 +521,7 @@ def walk(s, a, until=None):
     # the plan table: every command and dry run is shown BEFORE the confirmation
     s.step("5/8 plan table (commands + dry run)", r"Dry run passed|FAIL Dry run|Dry run could not", None, timeout=300)
     seen = ""
-    cmd_rx = rf"(apt-get|dnf) install -y .*\b{re.escape(pkg)}\b"
+    cmd_rx = rf"(apt-get install -y|dnf install -y|pacman -Syu --needed --noconfirm) .*\b{re.escape(pkg)}\b"
     for _ in range(30):
         seen += "\n" + s.term.text()
         if re.search(r"Dry run passed", seen) and re.search(cmd_rx, seen):
@@ -535,7 +535,7 @@ def walk(s, a, until=None):
     s.check("plan table shows the dry-run result", "Dry run passed" in seen)
     for extra in a.extra:
         s.check(f"plan table also shows the install command for {extra}",
-                re.search(rf"(apt-get|dnf) install -y .*\b{re.escape(extra)}\b", seen))
+                re.search(rf"(apt-get install -y|dnf install -y|pacman -Syu --needed --noconfirm) .*\b{re.escape(extra)}\b", seen))
     s.check("plan has only the ticked packages", len(re.findall(r"Install \d+ package", seen)) <= 1 + len(a.extra),
             "more steps than selected packages")
     s.send(ENTER)

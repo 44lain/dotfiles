@@ -30,7 +30,6 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-: "$rebuild"   # accepted for the cached-image work in Task 5; nothing is cached yet
 if ! command -v docker >/dev/null 2>&1; then
 	echo "docker not found — skipped"
 	[ "${CI:-}" = true ] && { echo "FAIL: CI must not skip the installer e2e test"; exit 1; }
@@ -59,8 +58,10 @@ set -u
 check() { if [ "$1" = ok ]; then printf 'E2E-CHECK ok %s\n' "$2"; else printf 'E2E-CHECK FAIL %s\n' "$2"; fi; }
 ck() { local name=$1; shift; if "$@"; then check ok "$name"; else check FAIL "$name"; fi; }
 bootstrap() {
-	eval "$PREP" || { check FAIL "prerequisites installed"; exit 1; }
-	sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin >/dev/null || { check FAIL "chezmoi installed (network?)"; exit 1; }
+	if [ "${E2E_BASE:-0}" != 1 ]; then   # the cached base image already has the prerequisites and chezmoi
+		eval "$PREP" || { check FAIL "prerequisites installed"; exit 1; }
+		sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin >/dev/null || { check FAIL "chezmoi installed (network?)"; exit 1; }
+	fi
 	export PATH="$HOME/.local/bin:$PATH"
 	# cp -r (not -a): files must belong to root or git refuses; .git is recreated
 	# because a worktree's .git is a pointer to a host path
@@ -245,6 +246,7 @@ S2
 # s3.sh: S3 inside the container, started from a PLAIN image: only install.sh and a local clone exist
 cat > "$tmp/s3.sh" <<'S3'
 . /rice/lib.sh
+[ -f ~/.bashrc ] || cp /etc/skel/.bashrc ~/ 2>/dev/null   # arch's root has none; every real user gets skel's
 stty rows 30 cols 100 2>/dev/null
 export TERM=xterm LANG=C.UTF-8
 export RICE_REPO_URL=file:///work/dotfiles
@@ -272,16 +274,39 @@ exit 0
 S3
 
 # ---- orchestration (host) -------------------------------------------------------------
-declare -A image=([fedora]=fedora:43 [debian]=debian:trixie)
+declare -A image=([fedora]=fedora:43 [debian]=debian:trixie [arch]=archlinux:latest)
 declare -A prep=(
 	[fedora]="dnf install -y -q python3 git curl jq >/dev/null"
 	[debian]="DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 git curl jq ca-certificates >/dev/null"
+	[arch]="pacman -Syu --noconfirm --needed -q python git jq >/dev/null"
 )
-declare -A fcmd=([fedora]="dnf install -y" [debian]="apt-get install -y")
-declare -A loader=([fedora]=no [debian]=yes)
+declare -A fcmd=([fedora]="dnf install -y" [debian]="apt-get install -y" [arch]="pacman -Syu --needed --noconfirm")
+declare -A loader=([fedora]=no [debian]=yes [arch]=yes)
 # S3 raw: what the stock image prints when install.sh forgets to refresh the package lists
 # (fedora has no such cell: dnf refreshes its metadata itself)
-declare -A rawfail=([debian]="Unable to locate package")
+declare -A rawfail=([debian]="Unable to locate package" [arch]="database file for .* does not exist|target not found")
+declare -A base=()
+max_age=$(( ${E2E_BASE_MAX_AGE_DAYS:-3} * 86400 ))
+ensure_base() {  # ensure_base <family>: a fresh prerequisite image, tag in base[<family>]
+	local f=$1 digest tag created
+	digest=$(docker image inspect -f '{{index .RepoDigests 0}}' "${image[$f]}" 2>/dev/null || echo "${image[$f]}")
+	tag="rice-e2e-base:$f-$(printf '%s\n%s\n' "$digest" "${prep[$f]}" | sha256sum | cut -c1-12)"
+	if [ "$rebuild" -eq 0 ] && created=$(docker image inspect -f '{{.Created}}' "$tag" 2>/dev/null) \
+		&& [ $(( $(date +%s) - $(date -d "$created" +%s) )) -lt "$max_age" ]; then
+		base[$f]=$tag; return 0
+	fi
+	# shellcheck disable=SC2016 # expanded by the Dockerfile RUN, not here
+	printf 'FROM %s\nRUN %s\nRUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /root/.local/bin >/dev/null\nRUN [ -f /root/.bashrc ] || cp /etc/skel/.bashrc /root/\n' \
+		"${image[$f]}" "${prep[$f]}" > "$tmp/Dockerfile.$f"
+	mkdir -p "$tmp/ctx"   # empty build context: $tmp also holds the S3 clone
+	if docker build -q --no-cache -t "$tag" -f "$tmp/Dockerfile.$f" "$tmp/ctx" > "$tmp/build-$f.log" 2>&1; then
+		docker images --format '{{.Repository}}:{{.Tag}}' rice-e2e-base | grep "^rice-e2e-base:$f-" | grep -vxF "$tag" \
+			| xargs -r docker rmi >/dev/null 2>&1   # one base per family: disk use stays flat
+		base[$f]=$tag
+	else
+		echo "base image for $f could not be built:"; tail -20 "$tmp/build-$f.log"; return 1
+	fi
+}
 pkg=${E2E_PKG:-fzf}
 has() { case ",$2," in *",$1,"*) return 0 ;; esac; return 1; }
 
@@ -289,7 +314,7 @@ run_in() {  # run_in <family> <cell> <script> [docker -e args...]   (stdout = tr
 	local f=$1 cell=$2 script=$3; shift 3
 	docker run --rm --name "rice-e2e-$$-$cell" -v "$repo:/repo:ro" -v "$tmp:/rice:ro" \
 		-e PREP="${prep[$f]}" -e PKG="$pkg" -e FAMILY_CMD="${fcmd[$f]}" -e LOADER="${loader[$f]}" \
-		"$@" "${image[$f]}" bash "/rice/$script"
+		-e E2E_BASE=1 "$@" "${base[$f]}" bash "/rice/$script"
 }
 
 run_cell() {  # run_cell <family> <group>: writes $last/<cell>.out and .secs, never the console
@@ -353,6 +378,9 @@ fams=$(printf '%s\n' "${cells[@]}" | cut -d- -f1 | sort -u)
 for f in $fams; do
 	docker image inspect "${image[$f]}" >/dev/null 2>&1 || docker pull -q "${image[$f]}" >/dev/null 2>&1 \
 		|| { echo "cannot pull ${image[$f]}"; [ "${CI:-}" = true ] && exit 1; }
+done
+for f in $fams; do
+	case " ${cells[*]} " in *" $f-S1S4 "*|*" $f-S2 "*) ensure_base "$f" || exit 1 ;; esac
 done
 case " ${cells[*]}" in *-S3*) git clone -q --no-hardlinks "$repo" "$tmp/dotfiles" ;; esac
 
