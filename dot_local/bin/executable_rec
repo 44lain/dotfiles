@@ -27,6 +27,26 @@ chmod 700 "$run"
 
 say() { notify-send -a rec -t 2500 "$1" "${2:-}" 2>/dev/null || true; }
 
+# Short audio cue (freedesktop sound theme); silent if pw-play or the sound is missing.
+cue() { pw-play "/usr/share/sounds/freedesktop/stereo/$1.oga" >/dev/null 2>&1 & }
+
+# A full recording shows a sticky "REC" notification until the recorder exits, however it
+# ends (rec toggle, rec stop, a crash, a full disk). The watcher closes it and says where
+# the file went.
+rec_watch() {
+	local pid=$1 file=$2 nid
+	nid=$(notify-send -p -a rec -u critical -t 0 "● REC" "recording, SUPER+CTRL+SHIFT+R stops" 2>/dev/null || true)
+	cue device-added
+	(
+		while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+		[ -n "$nid" ] && gdbus call --session --dest org.freedesktop.Notifications \
+			--object-path /org/freedesktop/Notifications \
+			--method org.freedesktop.Notifications.CloseNotification "$nid" >/dev/null 2>&1
+		cue device-removed
+		say "Recording saved" "${file/#$HOME/~}"
+	) >/dev/null 2>&1 &
+}
+
 # Monitor to capture: the focused one (the game), else the first one.
 monitor() {
 	hyprctl monitors -j 2>/dev/null | jq -r '(map(select(.focused))[0] // .[0]).name' 2>/dev/null || echo screen
@@ -52,17 +72,18 @@ case "${1:-}" in
 	clip)
 		alive replay || { say "Replay is not running" "start it with: rec replay"; exit 1; }
 		kill -USR1 "$(cat "$run/replay.pid")"
-		say "Clip saved" "$dir"
+		cue camera-shutter
+		say "Clip saved" "${dir/#$HOME/~}"
 		;;
 	toggle)
 		if alive rec; then
-			kill -INT "$(cat "$run/rec.pid")"; rm -f "$run/rec.pid"
-			say "Recording stopped" "$dir"
+			kill -INT "$(cat "$run/rec.pid")"; rm -f "$run/rec.pid"   # the watcher announces the end
 		else
 			mapfile -t args < <(common)
-			gpu-screen-recorder "${args[@]}" -c mp4 -o "$dir/rec-$(date +%Y%m%d-%H%M%S).mp4" >/dev/null 2>&1 &
+			file="$dir/rec-$(date +%Y%m%d-%H%M%S).mp4"
+			gpu-screen-recorder "${args[@]}" -c mp4 -o "$file" >/dev/null 2>&1 &
 			echo $! > "$run/rec.pid"
-			say "Recording" "SUPER+CTRL+SHIFT+R stops"
+			rec_watch $! "$file"
 		fi
 		;;
 	status)

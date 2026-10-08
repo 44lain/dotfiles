@@ -11,6 +11,11 @@ which matters next to a CPU-bound game.
 | `rec toggle` | `SUPER+CTRL+SHIFT+R` | starts / stops a full recording |
 | `rec status`, `rec stop` | | what is running; stop everything |
 
+Feedback: a full recording shows a sticky **● REC** notification and plays a short sound
+when it starts; it closes and plays another sound when the recorder ends, however it ends
+(stop key, crash, full disk), and a toast says where the file went. Saving a clip plays a
+shutter sound. Sounds come from the freedesktop theme and are skipped silently if missing.
+
 It captures the focused monitor at 60 fps, game audio only (the microphone is not recorded).
 Knobs, as environment variables: `REC_DIR`, `REC_SECONDS`, `REC_FPS`, `REC_QUALITY`
 (`medium` | `high` | `very_high` | `ultra`), `REC_AUDIO` (`"default_output|default_input"` mixes the mic in).
