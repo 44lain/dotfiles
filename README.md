@@ -16,6 +16,10 @@ machine after a reinstall.
     <td><img src="docs/screenshots/dashboard.webp" alt="Dashboard panel"></td>
     <td><img src="docs/screenshots/performance.webp" alt="Performance panel"></td>
   </tr>
+  <tr>
+    <td><img src="docs/screenshots/installer-scan.webp" alt="Guided installer: scan of what is installed and what is missing"></td>
+    <td><img src="docs/screenshots/installer-plan.webp" alt="Guided installer: choose what to install, nothing runs before you confirm"></td>
+  </tr>
 </table>
 
 <sub>Wallpaper: Nighthawks, Edward Hopper. Colours come from the wallpaper (matugen). Personal details in the screenshots are blurred.</sub>
