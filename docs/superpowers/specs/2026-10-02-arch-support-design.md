@@ -1,6 +1,6 @@
 # Arch family support + a faster E2E matrix — design
 
-Date: 2026-10-02 · Status: draft, awaiting review
+Date: 2026-10-02 · Status: implemented (container-verified; real-machine Arch acceptance pending)
 
 ## Intent
 

@@ -10,8 +10,8 @@ machine after a reinstall.
 | | |
 | --- | --- |
 | **Supported** | **Fedora** (built and tested on Fedora 43) and **Debian-family distros** (Debian, Ubuntu, Linux Mint, Kali, Parrot, Pop!_OS, …) that can install **Hyprland 0.55 or newer** — the config is `hyprland.lua`, and Lua config needs a recent Hyprland. `rice doctor` tells you whether yours can and prints the install command. |
-| **Planned** | **Arch.** Nothing here is Arch-specific; the package names are already listed in [docs/dependencies.md](docs/dependencies.md) but have **not been tested**. Adding it means testing that list on a real install and dropping the "untested" warning. |
-| **Not supported** | Setups without Hyprland, and releases that cannot get Hyprland 0.55+ from their repos (e.g. Debian 12, Ubuntu 24.04 LTS) unless you build Hyprland yourself. |
+| **Supported** | **Arch** (verified in containers) and the distros on Arch's repositories — **EndeavourOS, CachyOS, Garuda** (detected by `ID_LIKE`, same packages, not tested separately). On Arch, installing also upgrades the system (`pacman -Syu`), the only supported way to install there. **Manjaro** works if its repositories carry Hyprland 0.55+; `rice doctor` tells you. |
+| **Not supported** | Setups without Hyprland, and releases that cannot get Hyprland 0.55+ from their repos (e.g. Debian 12, Ubuntu 24.04 LTS) unless you build Hyprland yourself. Artix (no systemd; the session needs uwsm and systemd user units). |
 
 Fedora with Hyprland is the verified target. The Debian family is verified in
 containers only (package names and a first apply, `make distro-check`); a full
@@ -55,7 +55,7 @@ If you would rather read the script first:
 It opens a terminal interface (English and Português). Nothing is installed without
 showing you the exact commands first and asking. Afterwards, `rice tui` opens it again
 (it re-scans, so only what is still missing is offered).
-Arch: package names resolve but the install flow is not verified.
+Arch: verified in containers; acceptance on a real Arch machine is pending.
 
 **Leaving the rice.** Installing it only adds a Hyprland entry to your login screen; to go
 back to your previous desktop, log out and pick it in the session selector. Packages,
@@ -70,8 +70,8 @@ sudo dnf install chezmoi git
 # Debian / Ubuntu / Mint / Kali / Parrot / Pop!_OS …
 sudo apt install git curl jq && sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
 export PATH="$HOME/.local/bin:$PATH"   # so the next command finds chezmoi in this shell
-# Arch
-sudo pacman -S chezmoi git
+# Arch (and EndeavourOS, CachyOS, Garuda)
+sudo pacman -Syu --needed chezmoi git
 
 chezmoi init 44lain    # clones over HTTPS — no SSH key needed
 ```
