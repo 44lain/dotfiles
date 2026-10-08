@@ -19,14 +19,28 @@
 !/.gitleaks.toml
 !/LICENSE
 
+# --- community files ---------------------------------------------------------
+!/CHANGELOG.md
+!/CONTRIBUTING.md
+!/SECURITY.md
+
 # --- CI ----------------------------------------------------------------------
 !/.github/workflows/*.yml
+!/.github/PULL_REQUEST_TEMPLATE.md
+!/.github/ISSUE_TEMPLATE/*.md
+!/.github/ISSUE_TEMPLATE/config.yml
 
 # --- docs ------------------------------------------------------------------
 !/docs/*.md
 !/docs/dependencies.md.tmpl
 !/docs/superpowers/specs/*.md
 !/docs/cursor-extensions.txt
+# screenshots for the README (images only; check them for personal info first)
+!/docs/screenshots/.gitkeep
+!/docs/screenshots/*.png
+!/docs/screenshots/*.jpg
+!/docs/screenshots/*.gif
+!/docs/screenshots/*.webp
 
 # --- tests ---------------------------------------------------------------
 !/test/*.sh

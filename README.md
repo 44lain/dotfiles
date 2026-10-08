@@ -1,9 +1,24 @@
 # dotfiles
 
-Hyprland rice for Fedora and Debian-family distros, managed with [chezmoi](https://www.chezmoi.io/).
+Hyprland rice for Fedora, Debian-family and Arch-family distros, managed with [chezmoi](https://www.chezmoi.io/).
 Meant to be cloned and actually used, not just looked at — pick your
 `profile`/`host` at apply time and it applies cleanly, or restore your own
 machine after a reinstall.
+
+<!-- SCREENSHOTS: add 2-3 images to docs/screenshots/ (desktop, launcher/bar, `rice tui`)
+     and a short GIF of the guided installer, then show them here, e.g.
+     ![desktop](docs/screenshots/desktop.png) -->
+
+## Quick start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh   # guided: scans, asks, installs, verifies
+rice doctor                                                                         # health check, any time
+```
+
+Everything is reversible (`rice rollback`, `rice uninstall`), and nothing is installed
+without showing you the exact commands first. Prefer to read first, or apply by hand?
+See [Guided install](#guided-install) and [Manual install](#manual-install).
 
 ## Who can use this
 
@@ -19,9 +34,9 @@ desktop run is confirmed on: *(not yet — to be filled in after a real-hardware
 test)*. Stock Debian 13 needs its backports repository enabled to get a usable
 Hyprland; `rice doctor` prints the steps.
 
-This repo only manages config files. It does **not** install packages —
-Hyprland, kitty, yazi and the rest must already be on the system, see
-[docs/dependencies.md](docs/dependencies.md). `chezmoi` and `git` are the
+`chezmoi apply` only manages config files and never installs packages. Hyprland,
+kitty, yazi and the rest come from the [guided install](#guided-install) (or by hand,
+see [docs/dependencies.md](docs/dependencies.md)). `chezmoi` and `git` are the
 only two things needed just to apply this repo itself.
 
 ### The bar, notifications and wallpaper
@@ -196,8 +211,12 @@ this repo went through.
 
 ```
 dotfiles/
+├── install.sh             guided-install entry point (curl | sh)
+├── installer/             the TUI behind install.sh and `rice tui` (Python)
 ├── .chezmoi.toml.tmpl     profile/host prompts (chezmoi init)
-├── .chezmoidata/hosts.toml   per-host monitors, kb_layout, GPU env, apps
+├── .chezmoidata/          hosts.toml (per-host monitors, kb_layout, GPU, apps),
+│                          packages.toml (package names per distro)
+├── .github/workflows/     check (shellcheck, gitleaks, tests), distro matrix
 ├── dot_bashrc.d/          10-path, 20-aliases, 30-pnpm, 40-starship
 ├── dot_config/
 │   ├── starship.toml
@@ -211,8 +230,8 @@ dotfiles/
 ├── dot_local/bin/         rice, rice-{apply,rollback,uninstall,onboard,doctor},
 │                          powermenu
 ├── bin/executable_cs2-mode.sh
-├── test/                  rice*.sh, machine.sh, wave-4-wallpaper.sh
-└── docs/                  dependencies, keyboard, theming, yt-x, ROADMAP, track-E
+├── test/                  rice*.sh, installer tests, distro/ (container checks, E2E)
+└── docs/                  see docs/README.md
 ```
 
 ## Dev commands (this repo, not the applied config)
@@ -223,5 +242,9 @@ make test               # test/*.sh — needs chezmoi; luajit optional
 make bashrc-hook        # `rice onboard` offers this; manual form (hooks ~/.bashrc.d into ~/.bashrc)
 make docs               # regenerate docs/dependencies.md from .chezmoidata/packages.toml
 make distro-check       # package names + guest install in containers (docker, network)
+make e2e-check          # guided installer end to end in containers (docker, network, slow)
 make cursor-extensions  # installs the Cursor extensions in docs/cursor-extensions.txt
 ```
+
+Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+History: [CHANGELOG.md](CHANGELOG.md). What is planned: [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -68,14 +68,14 @@ The repo gains **three explicit layers:**
 | Id   | Item | Status | Effort | Deps |
 | ---- | ---- | ------ | ------ | ---- |
 | E0   | Spike: chezmoi vs yadm in a throwaway dir → documented decision | **done** | S | — |
-| E1   | Migrate repo to chezmoi source layout (`dot_config/…`, `private_`/`executable_`/`run_once_` prefixes). `chezmoi apply` reproduces `$HOME` **identically**. | todo | L | E0 |
-| E1a  | Safe-apply guard: mandatory `chezmoi diff` + auto-backup of any file `apply` would overwrite | todo | S | E1 |
-| E2   | Three layers + `.chezmoi.toml.tmpl` prompting `personal \| guest` at `chezmoi init` | todo | M | E1 |
-| E3   | Idempotent bootstrap scripts: package install + `systemctl --user enable` in the same `apply` | todo | M | E2 |
-| E3a  | Package-manager abstraction: `dnf` (Fedora) vs `apt` (Parrot), shared package list | todo | S | E3 |
+| E1   | Migrate repo to chezmoi source layout (`dot_config/…`, `private_`/`executable_`/`run_once_` prefixes). `chezmoi apply` reproduces `$HOME` **identically**. | **done** | L | E0 |
+| E1a  | Safe-apply guard: mandatory `chezmoi diff` + auto-backup of any file `apply` would overwrite | **done** | S | E1 |
+| E2   | Three layers + `.chezmoi.toml.tmpl` prompting `personal \| guest` at `chezmoi init` | **done** | M | E1 |
+| E3   | Idempotent bootstrap: package install + services. Done as the guided installer (`install.sh`, `rice tui`), deliberately **not** inside `chezmoi apply` (P3: apply never runs `sudo`) | **done** | M | E2 |
+| E3a  | Package-manager abstraction: `dnf` (Fedora) vs `apt` (Parrot), shared package list | **done** | S | E3 |
 | E4   | Secrets: `encrypted_` (age) or password-manager templates | todo | S | E1 |
-| E5   | Onboarding wizard: install layer 1, then prompt monitors / scale / keyboard layout → generate layer 2 for that machine | todo | M | E2 |
-| E6   | Docs: README quickstart, "restore on a new machine", CONTRIBUTING, CLAUDE.md matching the other repos' style | todo | S | E1 |
+| E5   | Onboarding wizard: install layer 1, then prompt monitors / scale / keyboard layout → generate layer 2 for that machine | **done** | M | E2 |
+| E6   | Docs: README quickstart, "restore on a new machine", CONTRIBUTING, CLAUDE.md matching the other repos' style | wip | S | E1 |
 
 **Done when:** (a) clean Fedora VM + one command → full desktop back;
 (b) the Parrot notebook runs the same layer 1; (c) a guest dev installs
@@ -157,8 +157,8 @@ most use an installer script, not chezmoi):
 
 | Id | Item | Status | Effort | Deps |
 | -- | ---- | ------ | ------ | ---- |
-| B1 | `dotfiles doctor`: configs parse, services up, fonts present, theme coherent | todo | M | E1 |
-| B2 | CI: shellcheck, stylua, JSON-schema for `*.json` configs, `chezmoi execute-template` dry-run | todo | M | E1 |
+| B1 | `rice doctor` (was `dotfiles doctor`): configs parse, services up, fonts present, theme coherent | **done** | M | E1 |
+| B2 | CI: shellcheck + gitleaks + tests + distro/E2E matrix are in; still missing: stylua, JSON-schema for `*.json` configs, `chezmoi execute-template` dry-run | wip | M | E1 |
 | B3 | `systemd --user` units with `Restart=` + wallpaper/theme fallback | todo | S | — |
 | B4 | Perf pass: startup cost + animation timings, measured on i3-6300/1660S | todo | S | — |
 
