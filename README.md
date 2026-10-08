@@ -5,9 +5,20 @@ Meant to be cloned and actually used, not just looked at — pick your
 `profile`/`host` at apply time and it applies cleanly, or restore your own
 machine after a reinstall.
 
-<!-- SCREENSHOTS: add 2-3 images to docs/screenshots/ (desktop, launcher/bar, `rice tui`)
-     and a short GIF of the guided installer, then show them here, e.g.
-     ![desktop](docs/screenshots/desktop.png) -->
+![The desktop: Hyprland with the grootshell bar](docs/screenshots/desktop.webp)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/terminal.webp" alt="kitty with fastfetch, yazi and the media card"></td>
+    <td><img src="docs/screenshots/wallpaper-picker.webp" alt="Wallpaper picker; the palette follows the wallpaper"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.webp" alt="Dashboard panel"></td>
+    <td><img src="docs/screenshots/performance.webp" alt="Performance panel"></td>
+  </tr>
+</table>
+
+<sub>Wallpaper: Nighthawks, Edward Hopper. Colours come from the wallpaper (matugen). Personal details in the screenshots are blurred.</sub>
 
 ## Quick start
 

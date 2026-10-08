@@ -4,6 +4,11 @@ Notable changes, newest first. Versions follow [Semantic Versioning](https://sem
 loosely: while the major version is 0, the interface (`rice` commands, `hosts.toml`
 keys, installer flags) can still change between minors.
 
+## [Unreleased]
+
+### Added
+- Screenshots in the README (personal details blurred).
+
 ## [0.1.0] - 2026-10-08
 
 First tagged state. Everything below was built before tagging; this entry is the
