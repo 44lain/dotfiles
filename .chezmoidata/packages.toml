@@ -121,11 +121,11 @@ required = true
 fedora   = ""
 debian   = ""
 arch     = ""
-manual   = "git clone -b rice https://github.com/44lain/grootshell ~/.config/quickshell/grootshell"
+manual   = "git clone -b rice https://github.com/lainciano/grootshell ~/.config/quickshell/grootshell"
 
 [packages.grootshell.recipe]
 kind   = "git-clone"
-url    = "https://github.com/44lain/grootshell"
+url    = "https://github.com/lainciano/grootshell"
 branch = "rice"
 dest   = "~/.config/quickshell/grootshell"
 

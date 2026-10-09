@@ -43,4 +43,4 @@ baseline to pin to (`git checkout v0.1.0`).
 - Theme engine (track A), perf pass and stylua/schema CI are still on the
   [roadmap](docs/ROADMAP.md).
 
-[0.1.0]: https://github.com/44lain/dotfiles/releases/tag/v0.1.0
+[0.1.0]: https://github.com/lainciano/dotfiles/releases/tag/v0.1.0

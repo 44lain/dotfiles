@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # rice-onboard — first-machine setup wizard (docs/track-E.md §5).
 #   1. deps      chezmoi/git required; age optional (secrets, personal only)
-#   2. init      `chezmoi init 44lain` if not yet initialised
+#   2. init      `chezmoi init lainciano` if not yet initialised
 #   3. git name + email prompt once, machine-local (~/.config/git/local)
 #   4. wallpaper prompt once (optional), machine-local chezmoi.toml [data]
 #   5. profile   personal | guest
@@ -175,7 +175,7 @@ if [ ! -f "$chezmoi_config" ]; then
 	if [ -n "$flag_profile$flag_host" ] && [ -f "$src_dir/.chezmoi.toml.tmpl" ]; then
 		chezmoi init --promptDefaults   # answers come from the flags; never prompt twice
 	else
-		chezmoi init 44lain
+		chezmoi init lainciano
 	fi
 fi
 

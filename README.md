@@ -27,7 +27,7 @@ machine after a reinstall.
 ## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh   # guided: scans, asks, installs, verifies
+curl -fsSL https://raw.githubusercontent.com/lainciano/dotfiles/main/install.sh | sh   # guided: scans, asks, installs, verifies
 rice doctor                                                                         # health check, any time
 ```
 
@@ -60,14 +60,14 @@ Those come from **grootshell**, a [Quickshell](https://quickshell.outfoxxed.me/)
 desktop shell that is not part of this repo. It is an upstream project
 ([BenjaminPrice/grootshell](https://github.com/BenjaminPrice/grootshell),
 GPL-3.0); the version used with this rice is kept as a fork at
-[44lain/grootshell](https://github.com/44lain/grootshell). Without it Hyprland
+[lainciano/grootshell](https://github.com/lainciano/grootshell). Without it Hyprland
 still starts, but there is no bar, no notification daemon and no wallpaper.
 
 ```bash
 # Fedora; other distros: see docs/dependencies.md
 sudo dnf copr enable errornointernet/quickshell && sudo dnf install quickshell
 cargo install matugen        # wallpaper -> colour palette; needs Rust/cargo (on Debian family too)
-git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
+git clone https://github.com/lainciano/grootshell ~/.config/quickshell/grootshell
 ```
 
 ## Guided install
@@ -75,11 +75,11 @@ git clone https://github.com/44lain/grootshell ~/.config/quickshell/grootshell
 One command checks what your system is missing, installs it after you confirm, sets
 your preferences and verifies the result — from a fresh machine to a working rice:
 
-    curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/lainciano/dotfiles/main/install.sh | sh
 
 If you would rather read the script first:
 
-    git clone https://github.com/44lain/dotfiles ~/.local/share/chezmoi
+    git clone https://github.com/lainciano/dotfiles ~/.local/share/chezmoi
     ~/.local/share/chezmoi/install.sh
 
 It opens a terminal interface (English and Português). Nothing is installed without
@@ -103,7 +103,7 @@ export PATH="$HOME/.local/bin:$PATH"   # so the next command finds chezmoi in th
 # Arch (and EndeavourOS, CachyOS, Garuda)
 sudo pacman -Syu --needed chezmoi git
 
-chezmoi init 44lain    # clones over HTTPS — no SSH key needed
+chezmoi init lainciano    # clones over HTTPS — no SSH key needed
 ```
 
 You'll be asked two questions — each one explains itself when you see it,

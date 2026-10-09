@@ -16,7 +16,7 @@ The full list is in [docs/ROADMAP.md](docs/ROADMAP.md#principles). The ones that
 ## Setup
 
 ```bash
-git clone https://github.com/44lain/dotfiles && cd dotfiles
+git clone https://github.com/lainciano/dotfiles && cd dotfiles
 make check    # shellcheck + gitleaks (both must be installed)
 make test     # test/*.sh (needs chezmoi, jq; luajit optional)
 ```

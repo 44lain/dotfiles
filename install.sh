@@ -1,15 +1,15 @@
 #!/bin/sh
 # install.sh — entry point of the guided installer.
-#   curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/lainciano/dotfiles/main/install.sh | sh
 # or, to read it first:
-#   git clone https://github.com/44lain/dotfiles ~/.local/share/chezmoi && ~/.local/share/chezmoi/install.sh
+#   git clone https://github.com/lainciano/dotfiles ~/.local/share/chezmoi && ~/.local/share/chezmoi/install.sh
 #
 # It checks the minimum the installer itself needs (python3 >= 3.11, git, curl,
 # jq, chezmoi), shows what is missing and ASKS before installing it, makes sure the
 # repo is in chezmoi's source directory, then opens the TUI.
 set -eu
 
-REPO_URL=${RICE_REPO_URL:-https://github.com/44lain/dotfiles.git}
+REPO_URL=${RICE_REPO_URL:-https://github.com/lainciano/dotfiles.git}
 SRC=${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}
 TTY=${RICE_TTY:-/dev/tty}
 OSR=${RICE_OS_RELEASE:-/etc/os-release}

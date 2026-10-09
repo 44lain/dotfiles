@@ -237,7 +237,7 @@ same keys. Messages printed by the existing bash commands stay in English.
 ### 5. Entry point and installation from zero
 
 Two documented paths: the one-liner
-(`curl -fsSL https://raw.githubusercontent.com/44lain/dotfiles/main/install.sh | sh`) and
+(`curl -fsSL https://raw.githubusercontent.com/lainciano/dotfiles/main/install.sh | sh`) and
 the manual one (`git clone`, then `./install.sh`) for anyone who wants to read
 the script first.
 
